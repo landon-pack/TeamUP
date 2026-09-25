@@ -3,7 +3,7 @@ import {runtime} from '@/lib/server';
 import type {Project} from '@/lib/model';
 export type AIMessage={role:'system'|'user'|'assistant';content:string};
 export class AIError extends Error { constructor(message:string,public status=502){super(message)} }
-export const GEMINI_MODEL='gemini-2.5-flash-lite';
+export const GEMINI_MODEL='gemini-3.5-flash-lite';
 export async function complete(messages:AIMessage[],json=false,providedKey?:string){
  const key=providedKey||await geminiKey();
  if(!key)throw new AIError('Connect Gemini in your account settings to start using AI.',503);
