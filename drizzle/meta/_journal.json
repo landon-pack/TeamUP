@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1790290898793,
+      "tag": "0000_charming_mandarin",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790291700457,
+      "tag": "0001_parched_nicolaos",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790309660008,
+      "tag": "0002_bumpy_nicolaos",
+      "breakpoints": true
+    }
+  ]
+}

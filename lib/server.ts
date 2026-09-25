@@ -1,0 +1,7 @@
+import {env} from 'cloudflare:workers';
+import {getChatGPTUser} from '@/app/chatgpt-auth';
+export const runtime=()=>env as unknown as {DB:D1Database;BUCKET:R2Bucket;GEMINI_API_KEY?:string;AI_CONFIG_ENCRYPTION_KEY?:string;SITE_OWNER_EMAIL?:string};
+export async function identity(){const user=await getChatGPTUser();if(!user)throw new Error('SIGN_IN');return {...user,email:user.email.toLowerCase()};}
+export async function projectFor(id:string,user:Awaited<ReturnType<typeof identity>>){const {DB}=runtime();const row=await DB.prepare('SELECT p.* FROM projects p WHERE p.id=? AND (p.owner=? OR EXISTS(SELECT 1 FROM memberships m WHERE m.project_id=p.id AND m.email=?))').bind(id,user.userId,user.email).first<{id:string;owner:string;data:string;version:number}>();if(!row)throw new Error('NOT_FOUND');return row;}
+export function failure(e:unknown){console.error('Teamup request failed',e);const message=e instanceof Error?e.message:'Unable to save right now.';return Response.json({error:message==='SIGN_IN'?'Sign in to save your work.':message==='NOT_FOUND'?'Project not found or access denied.':'Unable to complete this request. Your changes have not been saved. Please try again.'},{status:message==='SIGN_IN'?401:message==='NOT_FOUND'?404:500});}
+export function sameOrigin(req:Request){if(req.headers.get('origin')&&req.headers.get('origin')!==new URL(req.url).origin)throw new Error('Invalid origin');}

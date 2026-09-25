@@ -1,0 +1,7 @@
+import {sqliteTable,text,integer,index} from 'drizzle-orm/sqlite-core';
+export const projects=sqliteTable('projects',{id:text('id').primaryKey(),owner:text('owner').notNull(),data:text('data').notNull(),version:integer('version').notNull().default(0)});
+export const memberships=sqliteTable('memberships',{id:text('id').primaryKey(),projectId:text('project_id').notNull().references(()=>projects.id),email:text('email').notNull()},t=>[index('membership_email').on(t.email),index('membership_project').on(t.projectId)]);
+export const profiles=sqliteTable('profiles',{id:text('id').primaryKey(),name:text('name').notNull(),email:text('email').notNull()});
+export const files=sqliteTable('files',{id:text('id').primaryKey(),projectId:text('project_id').notNull().references(()=>projects.id),name:text('name').notNull(),size:integer('size').notNull(),type:text('type').notNull(),created:text('created').notNull()},t=>[index('file_project').on(t.projectId)]);
+export const chats=sqliteTable('chats',{id:text('id').primaryKey(),projectId:text('project_id').notNull().references(()=>projects.id),userId:text('user_id').notNull(),messages:text('messages').notNull().default('[]'),lockId:text('lock_id'),lockedUntil:integer('locked_until').notNull().default(0)});
+export const aiConfig=sqliteTable('ai_config',{id:text('id').primaryKey(),sealedKey:text('sealed_key').notNull(),updated:text('updated').notNull()});
