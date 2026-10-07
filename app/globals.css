@@ -8,3 +8,9 @@
 
 .welcome-panel{min-height:380px;background:white;border:1px solid #e0e3ee;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:48px 24px;margin:24px 0;gap:18px}.welcome-icon{display:grid;place-items:center;background:#eeebff;color:#6251df;width:76px;height:76px;border-radius:22px}.welcome-panel h2{font-size:clamp(24px,3vw,34px);font-weight:650;letter-spacing:-.8px}.welcome-panel p{max-width:480px;color:#69758b;font-size:16px;line-height:1.6}.welcome-panel small{max-width:460px;color:#69758b;font-size:14px;line-height:1.5}.welcome-panel .btn{margin:4px 0 10px}
 .invite-panel{display:flex;flex-direction:column;gap:16px;margin-bottom:20px;padding:24px}.invite-panel h2{font-size:20px;font-weight:650;margin-bottom:8px}.invite-panel small{font-size:14px;color:#69758b;line-height:1.5}.invite-url{display:flex;flex-direction:column;gap:8px;font-size:14px}.invite-url input{width:100%;padding:12px;border:1px solid #d8dce8;border-radius:8px;font-size:14px}.join-page{min-height:100vh;display:grid;place-items:center;padding:24px}.join-page .welcome-panel{width:min(100%,640px)}.join-page h1{font-size:30px;overflow-wrap:anywhere}
+
+/* Keep sidebar rows at their natural height; overflow scrolls above the account. */
+.workspace-sidebar-content{overflow-y:auto;overflow-x:hidden;padding-bottom:12px;overscroll-behavior:contain}
+.workspace-sidebar-content>*{flex-shrink:0}
+.workspace-sidebar-content .project-option{min-height:44px;line-height:20px;padding:12px;margin:0;flex-shrink:0}
+.workspace-sidebar-content>.sidebar-label{margin-top:12px;margin-bottom:8px}
