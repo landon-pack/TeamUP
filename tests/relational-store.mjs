@@ -14,7 +14,7 @@ globalThis.testDB=DB;globalThis.actor=null;
 try{
  for(const file of readdirSync('drizzle').filter(n=>n.endsWith('.sql')).sort())sql.exec(readFileSync('drizzle/'+file,'utf8'));
  function transpile(file,out,replacements={}){let source=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;for(const [a,b] of Object.entries(replacements))source=source.replaceAll(a,b);writeFileSync(join(temp,out),source)}
- transpile('lib/store.ts','store.mjs');transpile('lib/conversations.ts','conversations.mjs');
+ transpile('lib/invites.ts','invites.mjs',{'./store':'./store.mjs'});transpile('lib/store.ts','store.mjs');transpile('lib/conversations.ts','conversations.mjs');
  writeFileSync(join(temp,'server.mjs'),`import {getProject} from './store.mjs';export const runtime=()=>({DB:globalThis.testDB});export async function identity(){if(!globalThis.actor)throw new Error('SIGN_IN');return globalThis.actor}export const projectFor=(id,u)=>getProject(globalThis.testDB,id,u);export function sameOrigin(){}export function failure(e){return Response.json({error:e.message},{status:e.message==='SIGN_IN'?401:e.message==='NOT_FOUND'?404:e.message==='CONFLICT'?409:500})}`);
  writeFileSync(join(temp,'ai-config.mjs'),`export const aiConfigured=async()=>false;export const isSiteOwner=()=>false;`);
  transpile('app/api/workspace/route.ts','route.mjs',{'@/lib/store':'./store.mjs','@/lib/server':'./server.mjs','@/lib/ai-config':'./ai-config.mjs'});
@@ -38,6 +38,30 @@ try{
  const migrated=await store.getProject(DB,'old',member);assert.equal(migrated.tasks[0].status,'done');assert.equal(migrated.tasks[0].milestone,migrated.milestones[0].id);assert.equal(migrated.tasks[0].assignee,member.userId);assert.equal(migrated.version,4);assert.equal((await store.getProject(DB,'old',owner)).tasks.length,1);
  const legacyMessages=[{id:'q',role:'user',content:'Help?',created:'2026-01-01T00:00:00Z'},{id:'r',role:'assistant',content:'Sure.',created:'2026-01-01T00:00:01Z'}];sql.prepare('INSERT INTO chats(id,project_id,user_id,messages) VALUES(?,?,?,?)').run('old:auth-owner','old','auth-owner',JSON.stringify(legacyMessages));const cid=await chat.conversation(DB,'old',owner);assert.equal((await chat.readMessages(DB,cid)).length,2);await chat.conversation(DB,'old',owner);assert.equal((await chat.readMessages(DB,cid)).length,2);
  result=await post('update',{...migrated,members:migrated.members.filter(m=>m.id!==member.userId),tasks:migrated.tasks.map(t=>({...t,assignee:''}))});assert.equal(result.status,200);await assert.rejects(()=>store.getProject(DB,'old',member),/NOT_FOUND/);assert.equal((await store.listProjects(DB,member)).length,0);
+
+ const invites=await import(pathToFileURL(join(temp,'invites.mjs')));
+ globalThis.actor=owner;
+ const beforeInvite=await store.getProject(DB,p.id,owner);
+ const link=await invites.createInvite(DB,p.id,owner);
+ assert.equal(link.token.length,64);
+ assert.notEqual(sql.prepare('SELECT token_hash FROM project_invites WHERE project_id=?').get(p.id).token_hash,link.token);
+ await assert.rejects(()=>invites.createInvite(DB,p.id,stranger),/NOT_FOUND/);
+ const preview=await invites.previewInvite(DB,link.token,stranger);assert.equal(preview.name,p.name);assert.equal(preview.alreadyMember,false);
+ await invites.acceptInvite(DB,link.token,stranger);
+ assert.equal((await store.listProjects(DB,stranger)).length,1);
+ assert.equal((await post('update',beforeInvite)).status,409);
+ const versionAfterJoin=(await store.getProject(DB,p.id,owner)).version;
+ await invites.acceptInvite(DB,link.token,stranger);
+ assert.equal((await store.getProject(DB,p.id,owner)).version,versionAfterJoin);
+ const replacement=await invites.createInvite(DB,p.id,owner);
+ await assert.rejects(()=>invites.previewInvite(DB,link.token,member),/INVITE_INVALID/);
+ await assert.rejects(()=>invites.revokeInvite(DB,p.id,stranger),/NOT_FOUND/);
+ await invites.revokeInvite(DB,p.id,owner);
+ await assert.rejects(()=>invites.acceptInvite(DB,replacement.token,member),/INVITE_INVALID/);
+ const expired=await invites.createInvite(DB,p.id,owner);
+ sql.prepare('UPDATE project_invites SET expires_at=0 WHERE project_id=?').run(p.id);
+ await assert.rejects(()=>invites.acceptInvite(DB,expired.token,member),/INVITE_INVALID/);
+ console.log('PASS: invite authorization, hashed tokens, joining, stale membership protection, repeat acceptance, link replacement, revocation, expiry.');
  globalThis.actor=null;assert.equal((await route.GET()).status,401);
  assert.deepEqual(sql.prepare('PRAGMA foreign_key_check').all(),[]);
  console.log('PASS: migrations, empty new projects, normalized saves, completion persistence, stale updates, membership isolation/removal, availability ownership, legacy data/chat migration, authentication, foreign keys.');

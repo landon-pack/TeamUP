@@ -35,3 +35,7 @@ The original `profiles`, `memberships`, `chats`, and `projects.data` remain as m
 Run `npm run test:database` with Node 22 or later. It applies all migrations to an isolated SQLite database, exercises the actual workspace route and data layer, and checks new empty projects, task completion persistence, version conflicts, membership isolation, revoked access, availability ownership, and legacy project/chat migration. It does not call the live Gemini service or change production records.
 
 After deployment: sign in with a new account, create a project, add and complete a task, refresh, and verify it is absent from Active tasks and present in Completed. Add a teammate by email and confirm they can access the project; an unrelated account must not see it. Remove the teammate and confirm access is lost after refresh.
+
+## Invitation links
+
+`project_invites` stores one active link per project: project_id (PK/FK), token_hash (unique), created_by (user FK), created_at, and expires_at. Only the owner can create, replace, or revoke a link. The raw random token is shown only when generated; only its SHA-256 hash is stored. Links expire after seven days and require sign-in and explicit acceptance. Anyone with a valid link can join, up to the existing 30-person team limit. Revoking a link prevents future joins, not access for members already accepted; remove those members separately if needed. Acceptance increments the project version so stale team edits cannot silently remove a new member.
