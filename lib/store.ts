@@ -55,3 +55,16 @@ export async function readProject(db:D1Database,id:string):Promise<Project>{
 }
 export async function getProject(db:D1Database,id:string,u:Actor){const row=await authorized(db,id,u);if(!row)throw new Error('NOT_FOUND');await migrateProject(db,row,u);return readProject(db,id)}
 export async function listProjects(db:D1Database,u:Actor){const rows=await db.prepare(`SELECT p.id FROM projects p WHERE (p.normalized=1 AND EXISTS(SELECT 1 FROM group_members g WHERE g.group_id=p.group_id AND g.user_id=?)) OR (p.normalized=0 AND (p.owner=? OR EXISTS(SELECT 1 FROM memberships m WHERE m.project_id=p.id AND m.email=?)))`).bind(u.userId,u.authUserId,u.email).all<{id:string}>();const out:Project[]=[];for(const r of rows.results)out.push(await getProject(db,r.id,u));return out}
+
+export async function deleteProject(db:D1Database,id:string,u:Actor,version:number){
+ const p=await getProject(db,id,u);if(p.owner!==u.userId)throw new Error('NOT_FOUND');
+ const token=crypto.randomUUID(),guard='EXISTS(SELECT 1 FROM projects WHERE id=? AND write_token=?)';
+ const q=(sql:string,args:any[]=[])=>db.prepare(sql).bind(...args,id,token);
+ const statements=[db.prepare('UPDATE projects SET write_token=? WHERE id=? AND owner=? AND version=?').bind(token,id,u.userId,version),q(`INSERT OR IGNORE INTO file_cleanup(storage_key,user_id) SELECT COALESCE(storage_key,id),? FROM files WHERE project_id=? AND ${guard}`,[u.userId,id]),q(`DELETE FROM ai_messaging WHERE conversation_id IN (SELECT id FROM conversations WHERE project_id=?) AND ${guard}`,[id])];
+ for(const table of ['project_invites','conversations','chats','availability','tasks','milestones','files','memberships'])statements.push(q(`DELETE FROM ${table} WHERE project_id=? AND ${guard}`,[id]));
+ statements.push(q(`DELETE FROM projects WHERE id=? AND ${guard}`,[id]));
+ statements.push(db.prepare('DELETE FROM group_members WHERE group_id=? AND NOT EXISTS(SELECT 1 FROM projects WHERE group_id=?)').bind(p.groupId,p.groupId));
+ statements.push(db.prepare('DELETE FROM groups WHERE id=? AND NOT EXISTS(SELECT 1 FROM projects WHERE group_id=?)').bind(p.groupId,p.groupId));
+ const results=await db.batch(statements);if(!results[0].meta.changes)throw new Error('CONFLICT');
+}
+export async function cleanupFiles(db:D1Database,bucket:R2Bucket,userId:string){const rows=await db.prepare('SELECT storage_key FROM file_cleanup WHERE user_id=? LIMIT 30').bind(userId).all<{storage_key:string}>();for(const row of rows.results){try{await bucket.delete(row.storage_key);await db.prepare('DELETE FROM file_cleanup WHERE storage_key=?').bind(row.storage_key).run()}catch{console.error('Deferred deleted-file cleanup');break}}}

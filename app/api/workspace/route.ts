@@ -1,12 +1,13 @@
 import {aiConfigured,isSiteOwner} from '@/lib/ai-config';
 import {identity,runtime,projectFor,failure,sameOrigin} from '@/lib/server';
-import {listProjects,readProject,replaceRows,userKey} from '@/lib/store';
+import {listProjects,readProject,replaceRows,userKey,deleteProject,cleanupFiles} from '@/lib/store';
 import type {Project} from '@/lib/model';
-export async function GET(){try{const u=await identity();const {DB}=runtime();const profile=await DB.prepare('SELECT u.*,s.language,s.time_zone,s.notifications FROM users u JOIN settings s ON s.user_id=u.id WHERE u.id=?').bind(u.userId).first<any>();return Response.json({user:{id:u.userId,name:u.displayName,email:u.email,address:profile.address||'',phone:profile.phone||'',language:profile.language,timeZone:profile.time_zone,notifications:!!profile.notifications},projects:await listProjects(DB,u),aiReady:await aiConfigured(),canConfigureAI:isSiteOwner(u.email),emailReady:false});}catch(e){return failure(e)}}
+export async function GET(){try{const u=await identity();const {DB}=runtime();await cleanupFiles(DB,runtime().BUCKET,u.userId);const profile=await DB.prepare('SELECT u.*,s.language,s.time_zone,s.notifications,s.tutorial_seen FROM users u JOIN settings s ON s.user_id=u.id WHERE u.id=?').bind(u.userId).first<any>();return Response.json({user:{id:u.userId,name:u.displayName,email:u.email,address:profile.address||'',phone:profile.phone||'',language:profile.language,timeZone:profile.time_zone,notifications:!!profile.notifications,tutorialSeen:!!profile.tutorial_seen},projects:await listProjects(DB,u),aiReady:await aiConfigured(),canConfigureAI:isSiteOwner(u.email),emailReady:false});}catch(e){return failure(e)}}
 const date=(v:unknown)=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;
 const str=(v:unknown,n:number)=>typeof v==='string'&&v.length<=n;
 const unique=(rows:{id:string}[])=>new Set(rows.map(r=>r.id)).size===rows.length;
 export async function POST(req:Request){try{sameOrigin(req);const u=await identity();const {DB}=runtime();const raw=await req.text();if(raw.length>300000)return Response.json({error:'Project is too large.'},{status:400});const body=JSON.parse(raw);
+ if(body.action==='tutorial'){await DB.prepare('UPDATE settings SET tutorial_seen=1 WHERE user_id=?').bind(u.userId).run();return Response.json({ok:true});}
  if(body.action==='profile'){
   const name=String(body.name||'').trim().slice(0,80),zone=String(body.timeZone||'UTC');if(!name)return Response.json({error:'Enter your name.'},{status:400});try{new Intl.DateTimeFormat('en',{timeZone:zone})}catch{return Response.json({error:'Enter a valid timezone, such as America/Denver.'},{status:400})}
   await DB.batch([DB.prepare('UPDATE users SET name=?,address=?,phone=? WHERE id=?').bind(name,String(body.address||'').slice(0,300),String(body.phone||'').slice(0,40),u.userId),DB.prepare('UPDATE settings SET language=?,time_zone=?,notifications=? WHERE user_id=?').bind(String(body.language||'en').slice(0,20),zone,body.notifications===false?0:1,u.userId)]);return Response.json({ok:true});
@@ -29,3 +30,5 @@ export async function POST(req:Request){try{sameOrigin(req);const u=await identi
  else stmts.push(DB.prepare('UPDATE projects SET title=?,description=?,course=?,deadline=?,reminder_hours=?,version=version+1,write_token=? WHERE id=? AND version=?').bind(p.name,p.description||'',p.course||'',p.due,p.reminderHours,token,p.id,p.version));
  stmts.push(...replaceRows(DB,p,group,owner,token,create||owner===u.userId,u.userId));const results=await DB.batch(stmts);if(!create&&!results[0].meta.changes)throw new Error('CONFLICT');return Response.json({project:await readProject(DB,p.id)});
 }catch(e){return failure(e)}}
+
+export async function DELETE(req:Request){try{sameOrigin(req);const u=await identity();const body=await req.json() as {id:string;name:string;version:number};const p=await projectFor(body.id,u);if(p.owner!==u.userId)throw new Error('NOT_FOUND');if(body.name!==p.name||!Number.isInteger(body.version))return Response.json({error:'Type the project name to confirm deletion.'},{status:400});await deleteProject(runtime().DB,p.id,u,body.version);await cleanupFiles(runtime().DB,runtime().BUCKET,u.userId);return Response.json({ok:true})}catch(e){return failure(e)}}

@@ -15,7 +15,7 @@ try{
  for(const file of readdirSync('drizzle').filter(n=>n.endsWith('.sql')).sort())sql.exec(readFileSync('drizzle/'+file,'utf8'));
  function transpile(file,out,replacements={}){let source=ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;for(const [a,b] of Object.entries(replacements))source=source.replaceAll(a,b);writeFileSync(join(temp,out),source)}
  transpile('lib/invites.ts','invites.mjs',{'./store':'./store.mjs'});transpile('lib/store.ts','store.mjs');transpile('lib/conversations.ts','conversations.mjs');
- writeFileSync(join(temp,'server.mjs'),`import {getProject} from './store.mjs';export const runtime=()=>({DB:globalThis.testDB});export async function identity(){if(!globalThis.actor)throw new Error('SIGN_IN');return globalThis.actor}export const projectFor=(id,u)=>getProject(globalThis.testDB,id,u);export function sameOrigin(){}export function failure(e){return Response.json({error:e.message},{status:e.message==='SIGN_IN'?401:e.message==='NOT_FOUND'?404:e.message==='CONFLICT'?409:500})}`);
+ writeFileSync(join(temp,'server.mjs'),`import {getProject} from './store.mjs';export const runtime=()=>({DB:globalThis.testDB,BUCKET:{delete:async()=>{}}});export async function identity(){if(!globalThis.actor)throw new Error('SIGN_IN');return globalThis.actor}export const projectFor=(id,u)=>getProject(globalThis.testDB,id,u);export function sameOrigin(){}export function failure(e){return Response.json({error:e.message},{status:e.message==='SIGN_IN'?401:e.message==='NOT_FOUND'?404:e.message==='CONFLICT'?409:500})}`);
  writeFileSync(join(temp,'ai-config.mjs'),`export const aiConfigured=async()=>false;export const isSiteOwner=()=>false;`);
  transpile('app/api/workspace/route.ts','route.mjs',{'@/lib/store':'./store.mjs','@/lib/server':'./server.mjs','@/lib/ai-config':'./ai-config.mjs'});
  const store=await import(pathToFileURL(join(temp,'store.mjs'))),route=await import(pathToFileURL(join(temp,'route.mjs'))),chat=await import(pathToFileURL(join(temp,'conversations.mjs')));
@@ -62,6 +62,22 @@ try{
  sql.prepare('UPDATE project_invites SET expires_at=0 WHERE project_id=?').run(p.id);
  await assert.rejects(()=>invites.acceptInvite(DB,expired.token,member),/INVITE_INVALID/);
  console.log('PASS: invite authorization, hashed tokens, joining, stale membership protection, repeat acceptance, link replacement, revocation, expiry.');
+
+ globalThis.actor=owner;
+ const deleting=await store.getProject(DB,p.id,owner);
+ sql.prepare('INSERT INTO files(id,project_id,name,size,type,created,storage_key,uploaded_by) VALUES(?,?,?,?,?,?,?,?)').run('file-delete',p.id,'notes.txt',5,'text/plain',new Date().toISOString(),'file-delete',owner.userId);
+ await chat.conversation(DB,p.id,owner);
+ const del=async(name,version)=>route.DELETE(new Request('https://test/api/workspace',{method:'DELETE',body:JSON.stringify({id:p.id,name,version})}));
+ globalThis.actor=stranger;assert.equal((await del(deleting.name,deleting.version)).status,404);
+ globalThis.actor=owner;assert.equal((await del('wrong name',deleting.version)).status,400);
+ assert.equal((await del(deleting.name,deleting.version-1)).status,409);
+ assert.equal(sql.prepare('SELECT count(*) n FROM files WHERE project_id=?').get(p.id).n,1);
+ assert.equal((await del(deleting.name,deleting.version)).status,200);
+ for(const table of ['tasks','milestones','files','availability','conversations','project_invites','memberships','chats'])assert.equal(sql.prepare('SELECT count(*) n FROM '+table+' WHERE project_id=?').get(p.id).n,0);
+ await assert.rejects(()=>store.getProject(DB,p.id,owner),/NOT_FOUND/);
+ assert.equal((await store.getProject(DB,'old',owner)).name,'Existing project');
+ const tutorial=await route.POST(new Request('https://test/api/workspace',{method:'POST',body:JSON.stringify({action:'tutorial'})}));assert.equal(tutorial.status,200);assert.equal(sql.prepare('SELECT tutorial_seen FROM settings WHERE user_id=?').get(owner.userId).tutorial_seen,1);
+ console.log('PASS: owner-only deletion, typed confirmation, stale-delete rejection, child-record cleanup, preservation of other projects, tutorial preference persistence.');
  globalThis.actor=null;assert.equal((await route.GET()).status,401);
  assert.deepEqual(sql.prepare('PRAGMA foreign_key_check').all(),[]);
  console.log('PASS: migrations, empty new projects, normalized saves, completion persistence, stale updates, membership isolation/removal, availability ownership, legacy data/chat migration, authentication, foreign keys.');
