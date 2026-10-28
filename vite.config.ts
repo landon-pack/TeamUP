@@ -18,10 +18,10 @@ const d1DatabaseId =
 const d1DatabaseName = process.env.CLOUDFLARE_D1_DATABASE_NAME || "teamup";
 const r2BucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || "teamup-files";
 
+// Keep flags in wrangler.toml only — duplicating nodejs_compat here makes Miniflare crash.
 const localBindingConfig = {
   name: "teamup",
   main: "vinext/server/fetch-handler",
-  compatibility_flags: ["nodejs_compat"],
   d1_databases: d1
     ? [
         {
