@@ -1,0 +1,20 @@
+# Production Cloudflare config for TeamUP.
+# database_id is filled by `npm run cf:setup` (IDs are not secrets).
+name = "teamup"
+compatibility_date = "2026-05-15"
+compatibility_flags = ["nodejs_compat"]
+main = "dist/server/index.js"
+workers_dev = true
+
+[assets]
+directory = "dist/client"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "teamup"
+database_id = "cd02858d-a4b5-42d0-a152-76f1bf5b4c4e"
+migrations_dir = "drizzle"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "teamup-files"

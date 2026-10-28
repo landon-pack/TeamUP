@@ -8,7 +8,7 @@ export async function ensureUser(db: D1Database, authId: string, email: string, 
   await db.batch([
     db
       .prepare(
-        'INSERT INTO users(id,auth_id,name,email) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET auth_id=excluded.auth_id',
+        'INSERT INTO users(id,auth_id,name,email) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET auth_id=excluded.auth_id, name=excluded.name',
       )
       .bind(id, authId, name, email),
     db.prepare('INSERT OR IGNORE INTO settings(user_id) VALUES(?)').bind(id),

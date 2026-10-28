@@ -56,10 +56,9 @@ export default function Join() {
             <p>Sign in to review the invitation and join your team.</p>
             <a
               className='btn primary'
-              href={'/signin-with-chatgpt?return_to=' + encodeURIComponent('/join#' + token)}
-              target='_top'
+              href={'/signin?return_to=' + encodeURIComponent('/join#' + token)}
             >
-              Sign in with ChatGPT
+              Sign in
             </a>
           </>
         ) : project ? (

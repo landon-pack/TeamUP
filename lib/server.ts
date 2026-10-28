@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { getSessionUser } from '@/lib/auth';
 import { ensureUser, getProject } from './store';
+
 export const runtime = () =>
   env as unknown as {
     DB: D1Database;
@@ -8,9 +9,11 @@ export const runtime = () =>
     GEMINI_API_KEY?: string;
     AI_CONFIG_ENCRYPTION_KEY?: string;
     SITE_OWNER_EMAIL?: string;
+    AUTH_SECRET?: string;
   };
+
 export async function identity() {
-  const user = await getChatGPTUser();
+  const user = await getSessionUser();
   if (!user) throw new Error('SIGN_IN');
   const email = user.email.toLowerCase();
   const legacy = await runtime()
@@ -21,12 +24,14 @@ export async function identity() {
     runtime().DB,
     user.userId,
     email,
-    legacy?.name || user.fullName || email.split('@')[0],
+    legacy?.name || user.fullName || user.displayName || email.split('@')[0],
   );
 }
+
 export async function projectFor(id: string, user: Awaited<ReturnType<typeof identity>>) {
   return getProject(runtime().DB, id, user);
 }
+
 export function failure(e: unknown) {
   console.error('Teamup request failed', e instanceof Error ? e.message : 'Unknown error');
   const message = e instanceof Error ? e.message : '';
@@ -53,6 +58,7 @@ export function failure(e: unknown) {
     },
   );
 }
+
 export function sameOrigin(req: Request) {
   if (req.headers.get('origin') && req.headers.get('origin') !== new URL(req.url).origin)
     throw new Error('Invalid origin');

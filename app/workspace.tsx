@@ -106,7 +106,6 @@ function Picker({
 }
 export default function Workspace({ demoMode = false }: { demoMode?: boolean }) {
   const [tour, setTour] = useState<number | null>(null);
-  const [localPreview, setLocalPreview] = useState(false);
   const [canConfigureAI, setCanConfigureAI] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project>(emptyProject);
@@ -182,14 +181,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
       setTour(0);
       return;
     }
-    const local = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
-    setLocalPreview(local);
-    if (local) {
-      setLoading(false);
-      setError('');
-    } else {
-      load();
-    }
+    load();
   }, []);
   useEffect(() => {
     if (view === 'Files' && !isDemo && !demoMode)
@@ -730,11 +722,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                     Create your first project
                   </button>
                 ) : (
-                  <a
-                    className='btn primary'
-                    href='/signin-with-chatgpt?return_to=%2F'
-                    target='_top'
-                  >
+                  <a className='btn primary' href='/signin?return_to=%2F'>
                     Sign in to get started
                   </a>
                 ))}
@@ -756,12 +744,8 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
               <button className='underline ml-2' onClick={load}>
                 Reload
               </button>
-              {!user && !localPreview && (
-                <a
-                  className='underline ml-3'
-                  href='/signin-with-chatgpt?return_to=%2F'
-                  target='_top'
-                >
+              {!user && (
+                <a className='underline ml-3' href='/signin?return_to=%2F'>
                   Sign in
                 </a>
               )}
@@ -1488,15 +1472,9 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                   </label>
                 </>
               )}
-              {!user && localPreview && (
-                <div className='notice'>
-                  This is a local preview. Account sign-in and saving are available on the published
-                  website. Open the published site to save your work.
-                </div>
-              )}
-              {!user && !localPreview && (
-                <a className='btn primary' href='/signin-with-chatgpt?return_to=%2F' target='_top'>
-                  Sign in with ChatGPT
+              {!user && (
+                <a className='btn primary' href='/signin?return_to=%2F'>
+                  Sign in
                 </a>
               )}
               <button disabled={busy || !user} className='btn primary' type='submit'>
@@ -1508,7 +1486,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 </button>
               )}
               {modal === 'profile' && user && !demoMode && (
-                <a className='btn' href='/signout-with-chatgpt?return_to=%2F' target='_top'>
+                <a className='btn' href='/api/auth/signout?return_to=%2F'>
                   <LogOut size={16} />
                   Sign out
                 </a>
