@@ -2,42 +2,135 @@
 
 Group project workspace for coordinating tasks, milestones, availability, files, and AI-assisted planning.
 
-## Shared live app (Cloudflare)
-
-TeamUP deploys to **Cloudflare Workers** (D1 + R2). Pushing to `main` on GitHub runs `.github/workflows/deploy.yml` and updates the live Worker.
-
-Live URL: [https://teamup.landonpack7-teamup.workers.dev](https://teamup.landonpack7-teamup.workers.dev)  
-(Cloudflare dashboard → Workers → **teamup**, or the GitHub Actions deploy log.)
-
-### Classmate workflow
-
-1. Clone the GitHub repo and create a branch for your work.
-2. Open a PR / merge to `main`.
-3. Wait for the **Deploy to Cloudflare** GitHub Action to finish.
-4. Open the live URL and **Sign in** with your name + school email (no ChatGPT/Codex account required).
-5. Create or join projects with invite links as usual.
-
-Demo mode (no account): open `/demo` on the live site.
-
-### Sign-in
-
-Accounts are email + display name sessions (signed cookies). Use the same email your teammates invite. This is intentionally simple for a class project—not a production identity provider.
+**Live shared app:** [https://teamup.landonpack7-teamup.workers.dev](https://teamup.landonpack7-teamup.workers.dev)
 
 ---
 
-## One-time Cloudflare setup (project owner)
+## For teammates (start here)
 
-You need a Cloudflare account (free tier is enough).
+You do **not** need Codex or ChatGPT Sites. Use GitHub + a local preview, then the shared live URL after your work is merged.
+
+### What you’ll use
+
+| Purpose | Where |
+| --- | --- |
+| Code + pull requests | This GitHub repo |
+| Local preview while coding | `npm run dev` on your laptop |
+| Shared app with real saved data | [Live Cloudflare URL](https://teamup.landonpack7-teamup.workers.dev) |
+
+Local preview uses its **own local database**. Invites, teammates, and lasting project data live on the **Cloudflare** site.
+
+### Requirements
+
+- Node.js **22+**
+- Git
+- VS Code / Cursor (optional, but handy)
+
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/landon-pack/TeamUP.git
+cd TeamUP
+```
+
+If you already cloned it earlier:
+
+```bash
+cd TeamUP
+git checkout main
+git pull
+```
+
+### 2. Install dependencies
+
+```bash
+npm ci
+```
+
+### 3. Run the app locally
+
+```bash
+npm run dev
+```
+
+Open the URL it prints (usually **http://localhost:5173/**).
+
+Sign in at **/signin** with your **name + school email**. Use the same email every time.
+
+If you see a Vite error about a missing file in `node_modules/.vite`, stop the server (`Ctrl+C`) and run:
+
+```bash
+rm -rf node_modules/.vite
+npm run dev
+```
+
+### 4. Make a branch and work
+
+```bash
+git checkout main
+git pull
+git checkout -b your-name/short-description
+```
+
+Edit code, keep `npm run dev` running, and check changes in the browser.
+
+### 5. Commit and open a pull request
+
+```bash
+git add .
+git commit -m "Describe your change"
+git push -u origin HEAD
+```
+
+Then open a **Pull Request** into `main` on GitHub.
+
+After the PR is reviewed and **merged to `main`**:
+
+1. GitHub Actions deploys automatically
+2. Check the live site: [https://teamup.landonpack7-teamup.workers.dev](https://teamup.landonpack7-teamup.workers.dev)
+
+### 6. Collaborate on a shared project (live site)
+
+1. Open the live URL and sign in with name + email
+2. Create a project, or ask a teammate for an **invite link** (Project settings)
+3. Open the invite link → sign in → accept
+4. Work together on tasks, milestones, files, availability, etc.
+
+Demo mode (no account): open `/demo` on the live site.
+
+### Day-to-day commands
+
+```bash
+git pull                 # get latest main
+npm ci                   # if package-lock changed
+npm run dev              # local preview
+git checkout -b my-branch
+# ... code ...
+git add . && git commit -m "message"
+git push -u origin HEAD  # then open a PR
+```
+
+---
+
+## Sign-in notes
+
+- Sign-in is **email + display name** (no password for this class project)
+- Use the **same email** teammates invite you with
+- Live-site data persists in Cloudflare D1 (refresh won’t wipe it)
+
+---
+
+## One-time Cloudflare setup (project owner only)
+
+Teammates can skip this section.
 
 ### 1. Create an API token
 
 Cloudflare dashboard → **My Profile** → **API Tokens** → **Create Token**.
 
-Use a token that can edit Workers, D1, and R2 (Workers Scripts Edit + D1 Edit + Account Settings Read is a typical combo), or start from the “Edit Cloudflare Workers” template and add D1/R2.
+Use a token that can edit Workers, D1, and R2 (or the “Edit Cloudflare Workers” template plus D1/R2). Copy your **Account ID** from the dashboard.
 
-Also copy your **Account ID** from the dashboard overview.
-
-### 2. Log in locally and create resources
+### 2. Create resources locally
 
 ```bash
 npm ci
@@ -52,18 +145,14 @@ This creates the `teamup` D1 database and `teamup-files` R2 bucket, then writes 
 ### 3. Set Worker secrets
 
 ```bash
-# required
 openssl rand -base64 32 | npx wrangler secret put AUTH_SECRET
-
-# optional: your email can configure Gemini in the UI
-printf 'you@school.edu' | npx wrangler secret put SITE_OWNER_EMAIL
-
-# optional AI features
+printf 'you@school.edu' | npx wrangler secret put SITE_OWNER_EMAIL   # optional
+# optional AI:
 printf 'your-gemini-key' | npx wrangler secret put GEMINI_API_KEY
 openssl rand -base64 32 | npx wrangler secret put AI_CONFIG_ENCRYPTION_KEY
 ```
 
-`AI_CONFIG_ENCRYPTION_KEY` must be raw base64 that decodes to 16/24/32 bytes (the app uses AES-GCM).
+`AI_CONFIG_ENCRYPTION_KEY` must be raw base64 that decodes to 16/24/32 bytes (AES-GCM).
 
 ### 4. First deploy
 
@@ -71,15 +160,13 @@ openssl rand -base64 32 | npx wrangler secret put AI_CONFIG_ENCRYPTION_KEY
 npm run cf:deploy
 ```
 
-Note the `*.workers.dev` URL from the output.
-
 ### 5. GitHub Actions secrets
 
-GitHub repo → **Settings** → **Secrets and variables** → **Actions** → add:
+GitHub repo → **Settings** → **Secrets and variables** → **Actions**:
 
 | Secret | Value |
 | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | API token from step 1 |
+| `CLOUDFLARE_API_TOKEN` | API token |
 | `CLOUDFLARE_ACCOUNT_ID` | Account ID |
 | `CLOUDFLARE_D1_DATABASE_ID` | Same id as in `wrangler.toml` |
 | `AUTH_SECRET` | Same secret used above |
@@ -91,17 +178,9 @@ After that, every push to `main` deploys.
 
 ---
 
-## Local development
+## Useful scripts
 
-```bash
-npm ci
-npm run dev
-```
-
-Open the printed local URL. Sign in at `/signin`. Local D1/R2 come from Miniflare via the Vite Cloudflare plugin.
-
-Useful scripts:
-
+- `npm run dev` — local development server
 - `npm run build` — production build into `dist/`
 - `npm run cf:migrate` — apply Drizzle SQL to remote D1
 - `npm run cf:deploy` — build + migrate + deploy
@@ -126,7 +205,7 @@ TeamUP helps busy groups manage deadlines, task ownership, availability, and rem
 
 ### Quick verification
 
-1. Sign in with name + email.
-2. Create a project and add a task with a due date.
-3. Reload — the task should still be there.
-4. Create an invite link from Project settings and open it in another browser/profile to join.
+1. Sign in with name + email on the live site
+2. Create a project and add a task with a due date
+3. Reload — the task should still be there
+4. Create an invite link from Project settings and open it in another browser/profile to join
