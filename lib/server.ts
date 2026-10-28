@@ -1,8 +1,59 @@
-import {env} from 'cloudflare:workers';
-import {getChatGPTUser} from '@/app/chatgpt-auth';
-import {ensureUser,getProject} from './store';
-export const runtime=()=>env as unknown as {DB:D1Database;BUCKET:R2Bucket;GEMINI_API_KEY?:string;AI_CONFIG_ENCRYPTION_KEY?:string;SITE_OWNER_EMAIL?:string};
-export async function identity(){const user=await getChatGPTUser();if(!user)throw new Error('SIGN_IN');const email=user.email.toLowerCase();const legacy=await runtime().DB.prepare('SELECT name FROM profiles WHERE id=?').bind(user.userId).first<{name:string}>();return ensureUser(runtime().DB,user.userId,email,legacy?.name||user.fullName||email.split('@')[0]);}
-export async function projectFor(id:string,user:Awaited<ReturnType<typeof identity>>){return getProject(runtime().DB,id,user)}
-export function failure(e:unknown){console.error('Teamup request failed',e instanceof Error?e.message:'Unknown error');const message=e instanceof Error?e.message:'';return Response.json({error:message==='SIGN_IN'?'Sign in to open your workspace.':message==='NOT_FOUND'?'Project not found or access denied.':message==='CONFLICT'?'A teammate updated this project. Reload before saving again.':'Unable to complete this request. Please try again.'},{status:message==='SIGN_IN'?401:message==='NOT_FOUND'?404:message==='CONFLICT'?409:500});}
-export function sameOrigin(req:Request){if(req.headers.get('origin')&&req.headers.get('origin')!==new URL(req.url).origin)throw new Error('Invalid origin');}
+import { env } from 'cloudflare:workers';
+import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { ensureUser, getProject } from './store';
+export const runtime = () =>
+  env as unknown as {
+    DB: D1Database;
+    BUCKET: R2Bucket;
+    GEMINI_API_KEY?: string;
+    AI_CONFIG_ENCRYPTION_KEY?: string;
+    SITE_OWNER_EMAIL?: string;
+  };
+export async function identity() {
+  const user = await getChatGPTUser();
+  if (!user) throw new Error('SIGN_IN');
+  const email = user.email.toLowerCase();
+  const legacy = await runtime()
+    .DB.prepare('SELECT name FROM profiles WHERE id=?')
+    .bind(user.userId)
+    .first<{ name: string }>();
+  return ensureUser(
+    runtime().DB,
+    user.userId,
+    email,
+    legacy?.name || user.fullName || email.split('@')[0],
+  );
+}
+export async function projectFor(id: string, user: Awaited<ReturnType<typeof identity>>) {
+  return getProject(runtime().DB, id, user);
+}
+export function failure(e: unknown) {
+  console.error('Teamup request failed', e instanceof Error ? e.message : 'Unknown error');
+  const message = e instanceof Error ? e.message : '';
+  return Response.json(
+    {
+      error:
+        message === 'SIGN_IN'
+          ? 'Sign in to open your workspace.'
+          : message === 'NOT_FOUND'
+            ? 'Project not found or access denied.'
+            : message === 'CONFLICT'
+              ? 'A teammate updated this project. Reload before saving again.'
+              : 'Unable to complete this request. Please try again.',
+    },
+    {
+      status:
+        message === 'SIGN_IN'
+          ? 401
+          : message === 'NOT_FOUND'
+            ? 404
+            : message === 'CONFLICT'
+              ? 409
+              : 500,
+    },
+  );
+}
+export function sameOrigin(req: Request) {
+  if (req.headers.get('origin') && req.headers.get('origin') !== new URL(req.url).origin)
+    throw new Error('Invalid origin');
+}

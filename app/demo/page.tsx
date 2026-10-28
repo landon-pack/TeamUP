@@ -1,2 +1,4 @@
 import Workspace from '../workspace';
-export default function DemoPage(){return <Workspace demoMode/>}
+export default function DemoPage() {
+  return <Workspace demoMode />;
+}
