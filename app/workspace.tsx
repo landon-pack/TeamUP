@@ -663,7 +663,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                   : project.name}
               </p>
             </div>
-            {view !== 'Project settings' && (
+            {view !== 'Project settings' && view !== 'Availability' && (
               <button
                 className='btn primary'
                 onClick={() => {
