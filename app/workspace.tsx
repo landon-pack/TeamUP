@@ -722,7 +722,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                     Create your first project
                   </button>
                 ) : (
-                  <a className='btn primary' href='/signin?return_to=%2F'>
+                  <a className='btn primary' href='/signin?return_to=%2Fworkspace'>
                     Sign in to get started
                   </a>
                 ))}
@@ -745,7 +745,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 Reload
               </button>
               {!user && (
-                <a className='underline ml-3' href='/signin?return_to=%2F'>
+                <a className='underline ml-3' href='/signin?return_to=%2Fworkspace'>
                   Sign in
                 </a>
               )}
@@ -1473,7 +1473,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 </>
               )}
               {!user && (
-                <a className='btn primary' href='/signin?return_to=%2F'>
+                <a className='btn primary' href='/signin?return_to=%2Fworkspace'>
                   Sign in
                 </a>
               )}

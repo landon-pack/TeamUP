@@ -91,7 +91,7 @@ export default function Join() {
             </button>
           </>
         ) : null}
-        <a className='btn subtle' href='/'>
+        <a className='btn subtle' href='/workspace'>
           Back to workspace
         </a>
       </section>

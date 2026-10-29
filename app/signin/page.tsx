@@ -1,83 +1,100 @@
 'use client';
-import { useEffect, useState } from 'react';
+
+/**
+ * Sign in — resume an existing TeamUP session.
+ *
+ * This page already works (same API as Sign up). A teammate can polish the
+ * layout/copy without changing the submit handler below.
+ *
+ * TODO(teammate): improve visual design / copy.
+ * Safe to edit: headings, labels, placeholders, classNames, surrounding markup.
+ * Prefer keeping handleSubmit + startEmailSession as-is so auth keeps working.
+ */
+
+import { FormEvent, useState } from 'react';
+import {
+  DEFAULT_AFTER_AUTH_PATH,
+  readReturnToParam,
+  startEmailSession,
+} from '../../lib/auth-client';
 
 export default function SignInPage() {
-  const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  const [returnTo, setReturnTo] = useState('/');
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setReturnTo(params.get('return_to') || '/');
-  }, []);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
     setBusy(true);
-    setError('');
+
     try {
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, returnTo }),
+      const { returnTo } = await startEmailSession({
+        name,
+        email,
+        returnTo: readReturnToParam(),
       });
-      const data: any = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Unable to sign in.');
-      window.location.assign(data.returnTo || '/');
+      window.location.assign(returnTo || DEFAULT_AFTER_AUTH_PATH);
     } catch (err) {
-      setError((err as Error).message);
+      setError(err instanceof Error ? err.message : 'Unable to sign in.');
       setBusy(false);
     }
   }
 
   return (
-    <main className='join-page'>
-      <section className='welcome-panel'>
-        <span className='eyebrow'>TEAMUP ACCOUNT</span>
-        <h1>Sign in to your workspace</h1>
-        <p>
-          Use your school email so teammates can find you on invites and shared projects. No
-          password needed for this class project.
+    <main className='auth-page'>
+      <div className='auth-card'>
+        {/* TODO(teammate): restyle this card as you like */}
+        <p className='auth-brand'>
+          teamup<span>.</span>
         </p>
-        {error && (
-          <p className='error' role='alert'>
-            {error}
-          </p>
-        )}
-        <form className='form' style={{ width: 'min(100%, 420px)', textAlign: 'left' }} onSubmit={submit}>
+
+        <h1>Welcome back</h1>
+        <p className='auth-lede'>Sign in with the name and email you used before.</p>
+
+        <form className='auth-form' onSubmit={handleSubmit}>
           <label>
-            Display name
+            Full name
             <input
-              required
+              type='text'
+              name='name'
               autoComplete='name'
-              maxLength={80}
+              required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder='Alex Rivera'
+              placeholder='Alex Kim'
             />
           </label>
+
           <label>
             Email
             <input
-              required
               type='email'
+              name='email'
               autoComplete='email'
-              maxLength={254}
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder='you@school.edu'
             />
           </label>
-          <button className='btn primary' disabled={busy} type='submit'>
-            {busy ? 'Signing in…' : 'Continue'}
+
+          {error ? (
+            <p className='auth-error' role='alert'>
+              {error}
+            </p>
+          ) : null}
+
+          <button className='btn primary' type='submit' disabled={busy}>
+            {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-        <a className='btn subtle' href='/'>
-          Back to workspace
-        </a>
-      </section>
+
+        <p className='auth-switch'>
+          New here? <a href='/signup'>Create an account</a>
+        </p>
+      </div>
     </main>
   );
 }

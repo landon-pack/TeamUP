@@ -1,9 +1,19 @@
+/**
+ * Sign out — clears the session cookie.
+ *
+ * GET  /api/auth/signout?return_to=/  → redirect after clearing (used by links)
+ * POST /api/auth/signout             → JSON ok (used by fetch clients)
+ */
+
 import { clearSessionCookieHeader, safeReturnPath } from '@/lib/auth';
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const secure = url.protocol === 'https:';
-  const returnTo = safeReturnPath(url.searchParams.get('return_to'));
+  // Prefer explicit home (/) after logout; otherwise sanitize return_to.
+  const requested = url.searchParams.get('return_to');
+  const returnTo = requested === '/' || requested === null ? '/' : safeReturnPath(requested);
+
   return new Response(null, {
     status: 302,
     headers: {

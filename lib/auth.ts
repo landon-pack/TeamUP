@@ -1,22 +1,36 @@
+/**
+ * Server-side session auth (email + display name, no password).
+ *
+ * How it works:
+ * 1. /signup or /signin POSTs name+email to /api/auth/signin
+ * 2. That route calls createSessionToken() and sets the `teamup_session` cookie
+ * 3. Later requests call getSessionUser() to read the signed cookie
+ *
+ * Browser helpers live in lib/auth-client.ts.
+ * Cookie crypto (HMAC) stays in this file — do not call from client components.
+ */
+
 import { env } from 'cloudflare:workers';
 import { headers } from 'next/headers';
 
 export type SessionUser = {
-  /** Stable auth provider id stored in users.auth_id */
+  /** Stable id stored in users.auth_id (format: "email:you@school.edu") */
   userId: string;
   displayName: string;
   email: string;
   fullName: string | null;
 };
 
+/** Cookie name sent to the browser after a successful sign-in / sign-up. */
 export const SESSION_COOKIE = 'teamup_session';
 const SESSION_DAYS = 30;
 
+/** Compact fields inside the signed cookie payload. */
 type SessionPayload = {
-  e: string;
-  n: string;
-  i: string;
-  exp: number;
+  e: string; // email
+  n: string; // display name
+  i: string; // user id ("email:…")
+  exp: number; // expiry (unix ms)
 };
 
 function encoder() {
@@ -143,21 +157,28 @@ export function clearSessionCookieHeader(secure: boolean) {
 }
 
 export function safeReturnPath(value: string | null | undefined) {
-  if (!value?.startsWith('/') || value.startsWith('//')) return '/';
+  if (!value?.startsWith('/') || value.startsWith('//')) return '/workspace';
   try {
     const url = new URL(value, 'https://app.local');
-    if (url.origin !== 'https://app.local') return '/';
-    if (url.pathname === '/signin' || url.pathname.startsWith('/api/auth')) return '/';
+    if (url.origin !== 'https://app.local') return '/workspace';
+    if (
+      url.pathname === '/signin' ||
+      url.pathname === '/signup' ||
+      url.pathname.startsWith('/api/auth')
+    ) {
+      return '/workspace';
+    }
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return '/';
+    return '/workspace';
   }
 }
 
-export function signInPath(returnTo = '/') {
+export function signInPath(returnTo = '/workspace') {
   return `/signin?return_to=${encodeURIComponent(safeReturnPath(returnTo))}`;
 }
 
 export function signOutPath(returnTo = '/') {
-  return `/api/auth/signout?return_to=${encodeURIComponent(safeReturnPath(returnTo))}`;
+  const target = safeReturnPath(returnTo);
+  return `/api/auth/signout?return_to=${encodeURIComponent(target)}`;
 }

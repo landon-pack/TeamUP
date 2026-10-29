@@ -74,6 +74,20 @@ git checkout -b your-name/short-description
 
 Edit code, keep `npm run dev` running, and check changes in the browser.
 
+### Landing page — who edits what
+
+| Piece | File(s) |
+| --- | --- |
+| Page layout / site map notes | `app/landing.tsx` |
+| Hero + Sign up / Sign in / Demo buttons | `app/landing/hero.tsx` |
+| About Us copy | `app/landing/about.tsx` |
+| Image placeholder → real photos | `app/landing/visual.tsx` (+ put files in `public/landing/`) |
+| Sign up (working) | `app/signup/page.tsx` |
+| Sign in (works; polish the UI) | `app/signin/page.tsx` |
+| Shared auth API helper | `lib/auth-client.ts` |
+
+Routes: `/` landing · `/signup` · `/signin` · `/workspace` app · `/demo` guest mode.
+
 ### 5. Commit and open a pull request
 
 ```bash
