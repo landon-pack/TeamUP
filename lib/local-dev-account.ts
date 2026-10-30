@@ -14,10 +14,29 @@ export const LOCAL_DEV_ACCOUNT = {
   email: 'admin@teamup.local',
   username: 'admin',
   password: 'teamup',
-  firstName: 'Local',
-  lastName: 'Admin',
-  name: 'Local Admin',
+  firstName: 'Admin',
+  lastName: 'User',
+  /** Shown in the workspace sidebar (bottom-left). */
+  name: 'admin',
 } as const;
+
+/** sessionStorage key so the UI can show "admin" even if the HttpOnly cookie isn't readable. */
+export const LOCAL_ADMIN_SESSION_KEY = 'teamup_local_admin';
+
+export function rememberLocalAdminSession() {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(LOCAL_ADMIN_SESSION_KEY, '1');
+}
+
+export function clearLocalAdminSession() {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(LOCAL_ADMIN_SESSION_KEY);
+}
+
+export function hasLocalAdminSession() {
+  if (typeof window === 'undefined') return false;
+  return window.sessionStorage.getItem(LOCAL_ADMIN_SESSION_KEY) === '1';
+}
 
 /** True only for local Vite / Wrangler preview hosts. */
 export function isLocalDevHost(req: Request) {
@@ -32,4 +51,13 @@ export function matchesLocalDevAccount(login: string, password: string) {
     password === LOCAL_DEV_ACCOUNT.password &&
     (normalized === LOCAL_DEV_ACCOUNT.email || normalized === LOCAL_DEV_ACCOUNT.username)
   );
+}
+
+export function localAdminUser() {
+  return {
+    id: 'user:' + LOCAL_DEV_ACCOUNT.email,
+    name: LOCAL_DEV_ACCOUNT.name,
+    username: LOCAL_DEV_ACCOUNT.username,
+    email: LOCAL_DEV_ACCOUNT.email,
+  };
 }

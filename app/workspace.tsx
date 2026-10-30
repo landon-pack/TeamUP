@@ -6,6 +6,11 @@ import InviteLink from './invite-link';
 import Tutorial from './tutorial';
 import { practiceProject, demoUser } from '@/lib/demo';
 import {
+  clearLocalAdminSession,
+  hasLocalAdminSession,
+  localAdminUser,
+} from '@/lib/local-dev-account';
+import {
   LayoutDashboard,
   CheckSquare,
   CalendarDays,
@@ -104,6 +109,12 @@ function Picker({
     </Select>
   );
 }
+function isBrowserLocalHost() {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+}
+
 export default function Workspace({ demoMode = false }: { demoMode?: boolean }) {
   const [tour, setTour] = useState<number | null>(null);
   const [canConfigureAI, setCanConfigureAI] = useState(false);
@@ -112,6 +123,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
   const [user, setUser] = useState<{
     id: string;
     name: string;
+    username?: string;
     email: string;
     address?: string;
     phone?: string;
@@ -132,6 +144,8 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
   const [aiReady, setAiReady] = useState(false);
   const [plan, setPlan] = useState<any>(null);
   const [requirements, setRequirements] = useState('');
+  // Localhost + /demo: fully interactive in memory (no Cloudflare DB).
+  const [localOnly, setLocalOnly] = useState(demoMode);
   const isDemo = !project.id;
   const today = future(0);
   const done = project.tasks.filter((t) => t.status === 'done').length;
@@ -139,8 +153,38 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
   const me = user?.id || '';
   const mine = project.tasks.filter((t) => t.assignee === me && t.status !== 'done');
   const isOwner = !isDemo && project.owner === user?.id;
+
+  function startLocalSandbox() {
+    clearLocalAdminSession();
+    const p = practiceProject();
+    setLocalOnly(true);
+    setProject(p);
+    setProjects([p]);
+    setUser(demoUser);
+    setLoading(false);
+    setError('');
+    setTour(0);
+  }
+
+  /** Signed-in local admin — sidebar shows "admin", not Demo visitor. */
+  function startLocalAdminWorkspace() {
+    // Keep saves in-memory if the local API/DB path is unavailable, but identity is admin.
+    setLocalOnly(true);
+    setUser(localAdminUser());
+    setProjects([]);
+    setProject(emptyProject);
+    setLoading(false);
+    setError('');
+    setTour(null);
+  }
+
+  const isLocalAdmin =
+    user?.username === 'admin' || user?.email === 'admin@teamup.local' || user?.name === 'admin';
+
   async function api(url: string, options?: RequestInit) {
-    if (demoMode) throw new Error('This feature needs a real account. Exit the demo and sign in.');
+    // Only block API calls in the in-memory demo/sandbox — not for signed-in localhost admin.
+    if (localOnly || demoMode)
+      throw new Error('This feature needs a real account. Exit the demo and sign in.');
     const r = await fetch(url, options);
     const data: any = await r.json();
     if (!r.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
@@ -172,23 +216,71 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
     }
   }
   useEffect(() => {
+    // /demo → always in-memory practice (no DB).
     if (demoMode) {
-      const p = practiceProject();
-      setProject(p);
-      setProjects([p]);
-      setUser(demoUser);
-      setLoading(false);
-      setTour(0);
+      startLocalSandbox();
       return;
     }
+
+    // localhost /workspace:
+    // - Local admin session → show "admin" (never Demo visitor)
+    // - Signed out → in-memory sandbox for UI/CSS practice
+    if (isBrowserLocalHost()) {
+      (async () => {
+        setLoading(true);
+        const adminSession = hasLocalAdminSession();
+        try {
+          const r = await fetch('/api/workspace');
+          const data: any = await r.json();
+          if (r.ok && data.user) {
+            setLocalOnly(false);
+            setUser({
+              ...data.user,
+              // Force sidebar label for the hardcoded local admin.
+              name:
+                data.user.username === 'admin' || data.user.email === 'admin@teamup.local'
+                  ? 'admin'
+                  : data.user.name,
+              username:
+                data.user.username ||
+                (data.user.email === 'admin@teamup.local' ? 'admin' : data.user.username),
+            });
+            setProjects(data.projects || []);
+            setAiReady(!!data.aiReady);
+            setCanConfigureAI(!!data.canConfigureAI);
+            if (!data.user.tutorialSeen) setTour(0);
+            setProject(
+              (data.projects || []).find(
+                (p: Project) =>
+                  p.id === new URLSearchParams(window.location.search).get('project'),
+              ) ||
+                data.projects?.[0] ||
+                emptyProject,
+            );
+            setError('');
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // Fall through — admin marker still wins over Demo visitor.
+        }
+        if (adminSession) {
+          startLocalAdminWorkspace();
+          return;
+        }
+        startLocalSandbox();
+      })();
+      return;
+    }
+
     load();
   }, []);
   useEffect(() => {
-    if (view === 'Files' && !isDemo && !demoMode)
+    if (view === 'Files' && !isDemo && !localOnly)
       api('/api/files?project=' + project.id)
         .then((d) => setFiles(d.files))
         .catch((e) => toast.error(e.message));
-  }, [view, project.id]);
+  }, [view, project.id, localOnly]);
   useEffect(() => {
     const context = (document as any).modelContext;
     if (!context?.registerTool) return;
@@ -208,7 +300,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
               name: project.name,
               tasks: project.tasks,
               milestones: project.milestones,
-              demo: demoMode,
+              demo: localOnly,
             };
           },
         },
@@ -216,7 +308,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
       ),
     ).catch(() => {});
     return () => controller.abort();
-  }, [project, demoMode]);
+  }, [project, localOnly]);
   function open(type: string, data: any = {}) {
     setDraft(data);
     setModal(type);
@@ -224,11 +316,13 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
     setPlan(null);
   }
   async function save(next: Project, create = false) {
-    if (demoMode) {
+    // Local sandbox: keep everything in React state (no API / no DB).
+    if (localOnly) {
       setProject(next);
-      setProjects((prev) =>
-        create ? [...prev, next] : prev.map((p) => (p.id === next.id ? next : p)),
-      );
+      setProjects((prev) => {
+        if (create) return [...prev.filter((p) => p.id !== next.id), next];
+        return prev.map((p) => (p.id === next.id ? next : p));
+      });
       return true;
     }
     setBusy(true);
@@ -353,10 +447,10 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
     if (modal === 'reminders') {
       ok = await save({ ...project, reminderHours: Number(draft.hours) });
     }
-    if (modal === 'profile' && demoMode) {
+    if (modal === 'profile' && localOnly) {
       setUser((u) => (u ? { ...u, ...draft } : u));
       setModal('');
-      toast.success('Practice profile updated.');
+      toast.success('Local profile updated (not saved to the cloud).');
       return;
     }
     if (modal === 'profile') {
@@ -539,10 +633,20 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
               })
             }
           >
-            <span className='avatar'>{initials(user?.name || 'Guest')}</span>
+            <span className='avatar'>
+              {initials(isLocalAdmin ? 'admin' : user?.username || user?.name || 'Guest')}
+            </span>
             <span className='text-left'>
-              {user?.name || 'Your workspace'}
-              <small>{user ? 'Personal account' : 'Sign in to save your work'}</small>
+              {isLocalAdmin ? 'admin' : user?.username || user?.name || 'Your workspace'}
+              <small>
+                {isLocalAdmin
+                  ? 'Local admin account'
+                  : localOnly
+                    ? 'Demo sandbox'
+                    : user
+                      ? 'Personal account'
+                      : 'Sign in to save your work'}
+              </small>
             </span>
             <Settings className='ml-auto' size={15} color='#9da3af' />
           </button>
@@ -580,30 +684,48 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
           </div>
         </header>
         <div className='content'>
-          {demoMode && (
+          {(localOnly || isLocalAdmin) && (
             <div className='notice demo-banner'>
               <span>
-                <strong>Demo workspace</strong> · Practice changes reset when you reload. No real
-                accounts or projects are changed.
+                {isLocalAdmin ? (
+                  <>
+                    <strong>Local admin</strong> · Signed in as <strong>admin</strong>. Create
+                    projects and tasks here for testing. This does not change the live Cloudflare
+                    database.
+                  </>
+                ) : (
+                  <>
+                    <strong>{demoMode ? 'Demo workspace' : 'Local sandbox'}</strong> · Fully
+                    interactive here — add tasks, milestones, and try styling. Changes stay in this
+                    browser tab and never touch the live Cloudflare database. Reload resets practice
+                    data.
+                  </>
+                )}
               </span>
               <button
                 className='btn'
                 onClick={() => {
-                  const p = practiceProject();
-                  setProject(p);
-                  setProjects([p]);
-                  setUser(demoUser);
+                  if (isLocalAdmin) {
+                    startLocalAdminWorkspace();
+                  } else {
+                    startLocalSandbox();
+                  }
                   setView('Overview');
                   setFilter('active');
                   setMilestoneFilter('all');
                   setModal('');
-                  setTour(0);
                 }}
               >
-                Reset demo
+                Reset
               </button>
-              <a className='btn' href='/'>
-                Exit demo
+              <a
+                className='btn'
+                href={isLocalAdmin ? '/api/auth/signout?return_to=%2F' : '/'}
+                onClick={() => {
+                  if (isLocalAdmin) clearLocalAdminSession();
+                }}
+              >
+                {isLocalAdmin ? 'Sign out' : demoMode ? 'Exit demo' : 'Back to landing'}
               </a>
             </div>
           )}
@@ -615,7 +737,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
               filter={filter}
               onClose={() => {
                 setTour(null);
-                if (!demoMode && user)
+                if (!localOnly && user)
                   api('/api/workspace', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -627,7 +749,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 if (tour < 5) setTour(tour + 1);
                 else {
                   setTour(null);
-                  if (!demoMode && user)
+                  if (!localOnly && user)
                     api('/api/workspace', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -726,7 +848,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                     Sign in to get started
                   </a>
                 ))}
-              {!loading && !demoMode && (
+              {!loading && !localOnly && (
                 <a className='btn' href='/demo'>
                   Try demo — no sign-in needed
                 </a>
@@ -929,13 +1051,13 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
               </div>
             </>
           )}
-          {!isDemo && view === 'Assignment chat' && demoMode && (
+          {!isDemo && view === 'Assignment chat' && localOnly && (
             <div className='notice'>
-              AI chat and planning are available in your real workspace. Exit the demo and sign in
-              to use them.
+              AI chat and planning need the live workspace. In this local sandbox you can still edit
+              tasks, milestones, availability, and styling.
             </div>
           )}
-          {!isDemo && view === 'Assignment chat' && !demoMode && (
+          {!isDemo && view === 'Assignment chat' && !localOnly && (
             <AssignmentChat
               key={project.id}
               project={project}
@@ -1090,7 +1212,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                   <input
                     type='file'
                     className='sr-only'
-                    disabled={busy || demoMode}
+                    disabled={busy || localOnly}
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file || !requireProject()) return;
@@ -1130,8 +1252,8 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                   <FolderOpen className='mx-auto mb-3' />
                   Your shared files will appear here.
                   <br />
-                  {demoMode
-                    ? 'File uploads are disabled in the demo.'
+                  {localOnly
+                    ? 'File uploads are disabled in the local sandbox.'
                     : 'Upload files up to 10 MB each.'}
                 </div>
               )}
@@ -1179,10 +1301,10 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                     </p>
                   </div>
                 </div>
-                {demoMode ? (
+                {localOnly ? (
                   <div className='notice'>
-                    In your real workspace, the project owner can create an invitation link here to
-                    share with teammates. Demo mode does not create real invitations.
+                    Invitation links need the live workspace. This local sandbox does not create
+                    real invitations.
                   </div>
                 ) : isOwner ? (
                   <InviteLink key={project.id} project={project.id} />
@@ -1485,7 +1607,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                   {aiReady ? 'Update Gemini connection' : 'Connect Gemini'}
                 </button>
               )}
-              {modal === 'profile' && user && !demoMode && (
+              {modal === 'profile' && user && !localOnly && (
                 <a className='btn' href='/api/auth/signout?return_to=%2F'>
                   <LogOut size={16} />
                   Sign out
@@ -1514,7 +1636,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 onClick={async () => {
                   setBusy(true);
                   try {
-                    if (!demoMode)
+                    if (!localOnly)
                       await api('/api/workspace', {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },

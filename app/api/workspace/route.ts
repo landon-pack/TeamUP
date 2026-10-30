@@ -22,7 +22,9 @@ export async function GET() {
     return Response.json({
       user: {
         id: u.userId,
-        name: u.displayName,
+        // Prefer username for local admin so the sidebar shows "admin".
+        name: profile.username || profile.name || u.displayName,
+        username: profile.username || '',
         email: u.email,
         address: profile.address || '',
         phone: profile.phone || '',

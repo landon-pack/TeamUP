@@ -55,12 +55,37 @@ npm run dev
 
 Open the URL it prints (usually **http://localhost:5173/**).
 
-Create an account at **/signup** (first name, last name, username, email, password). Sign in at **/signin** with email or username + password. Use the same email teammates invite you with.
+### Local interactive testing
 
-**Local test login** (only on `localhost` — never the live site; uses your machine’s local D1, not Cloudflare production):
+Two localhost modes (neither touches the **live** Cloudflare database):
 
-- Username: `admin` (or email `admin@teamup.local`)
-- Password: `teamup`
+| Mode | How | What you get |
+| --- | --- | --- |
+| **Sandbox** (no login) | Open `/workspace` or `/demo` while signed out | Practice project in the browser only; reload resets |
+| **Local admin account** | Sign in at `/signin` with `admin` / `teamup`, then open `/workspace` | Real blank account on your machine’s local DB — create projects, tasks, milestones; persists until you reset local data |
+
+Vite hot-reloads as you save files, so you usually don’t need to push to see UI/CSS changes.
+
+On the **live** site, create a real account at **/signup**.
+
+### Editing like HTML / CSS (for teammates new to TypeScript)
+
+You do **not** need to know TypeScript to change copy and look-and-feel.
+
+| What you want to change | Closest to… | Open this |
+| --- | --- | --- |
+| Page text, headings, buttons, layout structure | **HTML** | `.tsx` files under `app/` (they look like HTML with `className=` instead of `class=`) |
+| Colors, spacing, fonts, button look | **CSS** | [`app/globals.css`](app/globals.css) |
+| Landing About copy | HTML | [`app/landing/about.tsx`](app/landing/about.tsx) |
+| Landing hero / Sign up button | HTML | [`app/landing/hero.tsx`](app/landing/hero.tsx) |
+| Sign-in / sign-up page look | HTML + CSS | `app/signin/page.tsx`, `app/signup/page.tsx`, and the `.auth-*` rules in `globals.css` |
+| Workspace panels, sidebar, task cards | CSS (+ some HTML in TSX) | `.panel`, `.btn`, `.sidebar-*` in `globals.css`; structure in `app/workspace.tsx` |
+
+Tips:
+
+- Keep `npm run dev` running and refresh/hot-reload in the browser.
+- Prefer editing **text inside tags** and **CSS class rules** first; avoid changing `{...}` JavaScript logic until you’re comfortable.
+- `className="btn primary"` in a `.tsx` file is the same idea as `class="btn primary"` in HTML — styles live under that name in `globals.css`.
 
 If you see a Vite error about a missing file in `node_modules/.vite`, stop the server (`Ctrl+C`) and run:
 

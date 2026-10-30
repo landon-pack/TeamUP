@@ -5,6 +5,12 @@
  * Sign in  → POST /api/auth/signin
  */
 
+import {
+  clearLocalAdminSession,
+  matchesLocalDevAccount,
+  rememberLocalAdminSession,
+} from './local-dev-account';
+
 export const DEFAULT_AFTER_AUTH_PATH = '/workspace';
 
 type AuthResult = {
@@ -60,7 +66,15 @@ export async function signInAccount(input: {
       returnTo: input.returnTo || DEFAULT_AFTER_AUTH_PATH,
     }),
   });
-  return readAuthResponse(response);
+  const result = await readAuthResponse(response);
+  // Remember local admin in sessionStorage so the sidebar can show "admin"
+  // (the real session cookie is HttpOnly and invisible to page JS).
+  if (matchesLocalDevAccount(input.login, input.password)) {
+    rememberLocalAdminSession();
+  } else {
+    clearLocalAdminSession();
+  }
+  return result;
 }
 
 /** Read ?return_to= from the current URL, falling back to the workspace. */

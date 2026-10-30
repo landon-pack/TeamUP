@@ -1,6 +1,8 @@
 /**
  * Route: `/workspace` → main TeamUP app (tasks, calendar, files, …).
- * Users usually land here after Sign up / Sign in.
+ *
+ * On localhost this opens an interactive in-memory sandbox (no Cloudflare DB).
+ * On the live site it uses signed-in accounts + D1.
  */
 import Workspace from '../workspace';
 
