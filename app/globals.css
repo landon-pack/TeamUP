@@ -241,8 +241,9 @@ h3 {
   height: 16px;
 }
 .project-banner {
-  background: #eeedfc;
+  background: #dbd9fc;
   border: 1px solid #e0ddf7;
+  border-left: 4px solid #6251df;
   border-radius: 13px;
   padding: 25px 26px;
   display: flex;
@@ -357,12 +358,17 @@ h3 {
   background: #fff;
   overflow: hidden;
 }
+.workspace-grid .panel,
+.workspace-grid .planner-card {
+  border: 1px solid #6251df;
+}
 .panel-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 21px 22px;
   gap: 12px;
+  background: #dbd9fc;
 }
 .panel-heading .btn {
   font-size: 13px;
@@ -457,7 +463,7 @@ h3 {
 }
 .planner-card .btn {
   width: 100%;
-  background: white;
+  background: #dbd9fc;
   color: #7661ba;
   border-color: #e0d8f3;
 }
@@ -466,6 +472,9 @@ h3 {
   align-items: center;
   gap: 10px;
   padding: 0 22px 18px;
+}
+.team-list-panel .panel-heading + .member-row {
+  padding-top: 18px;
 }
 .member-row .member-name {
   flex: 1;
@@ -532,7 +541,7 @@ h3 {
   padding: 12px 17px;
   border-radius: 8px;
   background: #f1efff;
-  color: #77709a;
+  color: hsl(250, 17%, 52%);
   font-size: 13px;
   margin-bottom: 20px;
   line-height: 1.6;
@@ -546,29 +555,75 @@ h3 {
 }
 .schedule .day {
   text-align: center;
-  font-size: 13px;
-  color: #7f879a;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3f4656;
   padding-bottom: 10px;
+}
+.schedule .day-of-week {
+  border-top: 1px solid #e6e9f0;
+  padding-top: 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4f586a;
 }
 .slot {
   height: 42px;
   border-radius: 6px;
-  border: 1px solid #e7e9f0;
-  background: #f8f9fc;
+  border: 2px solid #b1a4ee;
+  background: #e7e5fd;
   color: #8c93a2;
   font-size: 12px;
 }
+.slot:not(:disabled) {
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
+}
+.slot:not(:disabled):hover {
+  border-color: #5b54d9;
+  box-shadow: 0 3px 8px #5b54d933;
+  transform: translateY(-1px);
+}
+.slot:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+}
+.slot:focus-visible {
+  outline: 3px solid #5b54d9;
+  outline-offset: 2px;
+}
 .slot.selected {
-  background: #cfc9f9;
-  border-color: #b1a4ee;
-  color: #5845a5;
+  background: #5b54d9;
+  border-color: #5b54d9;
+  color: #fff;
 }
 .slot.common {
   box-shadow: inset 0 0 0 2px #5b54d9;
 }
+.slot.selected.common {
+  box-shadow: inset 0 0 0 2px #fff;
+}
+.slot.past {
+  opacity: 1;
+  cursor: default;
+}
+.slot:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.slot.past .availability-lock {
+  color: #6251df;
+}
+.slot.past.selected .availability-lock {
+  color: #dbd9fc;
+}
 .time {
-  font-size: 12px;
-  color: #939aaa;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4f586a;
   display: flex;
   align-items: center;
 }
@@ -912,7 +967,7 @@ h3 {
   text-align: center;
 }
 .context-body {
-  padding: 0 22px 22px;
+  padding: 18px 22px 22px;
 }
 .context-body p {
   font-size: 14px;
@@ -974,7 +1029,7 @@ h3 {
 
 .welcome-panel {
   min-height: 380px;
-  background: white;
+  background: #c7c4f5;
   border: 1px solid #e0e3ee;
   border-radius: 20px;
   display: flex;
@@ -1081,15 +1136,42 @@ h3 {
   margin-bottom: 8px;
 }
 .stat-link {
+  --stat-tint: #eeedff;
+  --stat-split: clamp(58px, 28%, 76px);
+  border: 3px solid #6251df;
   text-align: left;
   cursor: pointer;
+  background: linear-gradient(
+    90deg,
+    var(--stat-tint) 0 var(--stat-split),
+    #fff var(--stat-split) 100%
+  );
   transition:
     border-color 0.15s,
     box-shadow 0.15s,
     transform 0.15s;
 }
+.stat-link:nth-child(1) {
+  --stat-tint: #d9d4ff;
+}
+.stat-link:nth-child(2) {
+  --stat-tint: #e6f6ee;
+}
+.stat-link:nth-child(3) {
+  --stat-tint: #fff2df;
+}
+.stat-link:nth-child(4) {
+  --stat-tint: #d1e1ff;
+}
+.stat-link:nth-child(4) .stat-icon {
+  background: transparent;
+}
+button.stat-link .stat-icon {
+  background: transparent;
+}
 .stat-link:hover {
   border-color: #8175d9;
+  border-left-color: #6251df;
   box-shadow: 0 5px 16px #6251df12;
   transform: translateY(-2px);
 }
@@ -1107,10 +1189,13 @@ h3 {
   flex: 1;
   min-width: 200px;
 }
+.demo-banner-action {
+  border-color: #a8afbd;
+}
 .tutorial-card {
   border: 1px solid #bdb4f4;
   border-left: 4px solid #6251df;
-  background: white;
+  background: #dbd9fc;
   border-radius: 12px;
   padding: 20px 24px;
   margin-bottom: 24px;
@@ -1176,7 +1261,7 @@ h3 {
 }
 .project-settings .panel-heading {
   justify-content: center;
-  padding: 0 0 22px;
+  padding: 16px 0 22px;
 }
 .project-settings .subtext {
   max-width: 600px;
@@ -1209,6 +1294,9 @@ h3 {
 }
 .project-settings > .panel > .btn {
   margin-inline: auto;
+}
+.project-settings .delete-project-button {
+  margin-top: 14px;
 }
 
 /* =============================================================================
@@ -1342,6 +1430,59 @@ h3 {
   color: #667085;
   margin: 0;
 }
+.landing-start {
+  padding: 40px clamp(20px, 5vw, 64px) 72px;
+}
+.landing-start-heading {
+  max-width: 760px;
+  margin: 0 auto 30px;
+}
+.landing-start h2 {
+  font-size: clamp(24px, 3vw, 34px);
+  letter-spacing: -0.6px;
+  margin: 0 0 12px;
+}
+.landing-start-intro,
+.landing-start-steps p {
+  color: #667085;
+  font-size: 16px;
+  line-height: 1.7;
+}
+.landing-start-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+.landing-start-steps li {
+  padding: 24px;
+  border: 1px solid #e0e3ee;
+  border-radius: 14px;
+  background: #ffffffc9;
+}
+.landing-start-number {
+  display: inline-block;
+  margin-bottom: 18px;
+  color: #6962c9;
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 1px;
+}
+.landing-start-steps h3 {
+  margin: 0 0 9px;
+  font-size: 18px;
+  letter-spacing: -0.2px;
+}
+.landing-start-cta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 26px;
+}
 .landing-visual {
   padding: 20px clamp(20px, 5vw, 64px) 80px;
 }
@@ -1400,6 +1541,11 @@ h3 {
 .landing-footer a {
   color: #5b54d9;
   font-weight: 550;
+}
+@media (max-width: 760px) {
+  .landing-start-steps {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* =============================================================================
