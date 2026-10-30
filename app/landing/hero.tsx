@@ -22,10 +22,13 @@ export function LandingHero() {
             Sign up
           </a>
 
-          {/* TODO(teammate): polish the /signin page; this link can stay as-is */}
-          <a className='btn' href={LANDING_ROUTES.signIn}>
+          {/*
+            TODO(teammate): wire this to the sign-in form.
+            Example: change to <a className="btn" href={LANDING_ROUTES.signIn}>Sign in</a>
+          */}
+          <button type='button' className='btn' disabled title='Sign in link coming soon'>
             Sign in
-          </a>
+          </button>
 
           <a className='btn subtle' href={LANDING_ROUTES.demo}>
             Try demo

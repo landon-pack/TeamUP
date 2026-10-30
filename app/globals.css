@@ -1318,6 +1318,11 @@ h3 {
   color: #5b54d9;
   font-weight: 550;
 }
+.landing-footer-muted {
+  color: #8b91a0;
+  font-weight: 550;
+  cursor: default;
+}
 
 /* =============================================================================
    Auth pages (`/signup`, `/signin`) — centered clean form card

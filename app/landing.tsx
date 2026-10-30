@@ -3,6 +3,7 @@
  *
  * Who edits what:
  * - Hero CTAs / Sign up wiring → already set up
+ * - Sign in button → teammate wires to /signin (see hero/footer TODOs)
  * - About copy → app/landing/about.tsx
  * - Images → app/landing/visual.tsx (+ files in public/landing/)
  * - Sign in page look → app/signin/page.tsx
@@ -10,7 +11,7 @@
  * Site map:
  *   /           → this landing page
  *   /signup     → create account (working)
- *   /signin     → sign in (functional; UI polish is a teammate task)
+ *   /signin     → sign in form (not linked from landing yet)
  *   /workspace  → main app after auth
  *   /demo       → try the app without an account
  */
