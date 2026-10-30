@@ -703,7 +703,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 )}
               </span>
               <button
-                className='btn'
+                className='btn demo-banner-action'
                 onClick={() => {
                   if (isLocalAdmin) {
                     startLocalAdminWorkspace();
@@ -719,7 +719,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 Reset
               </button>
               <a
-                className='btn'
+                className='btn demo-banner-action'
                 href={isLocalAdmin ? '/api/auth/signout?return_to=%2F' : '/'}
                 onClick={() => {
                   if (isLocalAdmin) clearLocalAdminSession();
@@ -1263,12 +1263,12 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
             <>
               <div className='notice flex flex-wrap items-center justify-between gap-3'>
                 <span>Manage your teammates here. Share this project from Project settings.</span>
-                <button className='btn' onClick={() => setView('Project settings')}>
+                <button className='btn demo-banner-action' onClick={() => setView('Project settings')}>
                   <Settings size={16} />
                   Project settings
                 </button>
               </div>
-              <section className='panel'>
+              <section className='panel team-list-panel'>
                 <div className='panel-heading'>
                   <h2>Your project team</h2>
                 </div>
@@ -1329,7 +1329,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 </div>
                 {isOwner ? (
                   <button
-                    className='btn danger'
+                    className='btn danger delete-project-button'
                     onClick={() => open('delete-project', { confirmation: '' })}
                   >
                     Delete project
