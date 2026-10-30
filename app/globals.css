@@ -124,16 +124,9 @@ a:focus-visible {
   background: #fff;
   gap: 16px;
 }
-.crumb {
-  color: #8991a3;
-  font-size: 14px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.crumb strong {
-  color: #3e485d;
-  font-weight: 500;
+/* Desktop already shows the sidebar; only need the toggle on small screens. */
+.mobile-sidebar-trigger {
+  display: none;
 }
 .top-actions {
   display: flex;
@@ -294,13 +287,14 @@ h3 {
   margin: 0 0 26px;
 }
 .stat {
-  background: white;
-  border: 1px solid #e7eaf0;
-  border-radius: 11px;
-  padding: 19px;
+  background: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 18px 16px;
   display: flex;
   gap: 14px;
   align-items: center;
+  box-shadow: 0 1px 2px #1c24360a, 0 6px 18px #1c243608;
 }
 .stat-icon {
   display: grid;
@@ -720,8 +714,8 @@ h3 {
     height: 62px;
     padding: 0 16px;
   }
-  .crumb {
-    display: none;
+  .mobile-sidebar-trigger {
+    display: inline-flex;
   }
   .mobile-title {
     display: block;
@@ -1071,18 +1065,26 @@ h3 {
   text-align: left;
   cursor: pointer;
   transition:
-    border-color 0.15s,
-    box-shadow 0.15s,
-    transform 0.15s;
+    background-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 .stat-link:hover {
-  border-color: #8175d9;
-  box-shadow: 0 5px 16px #6251df12;
-  transform: translateY(-2px);
+  background: #f7f6ff;
+  box-shadow: 0 4px 10px #6251df14, 0 12px 28px #1c24360c;
+  transform: translateY(-1px);
 }
 .stat-link:focus-visible {
-  outline: 3px solid #8175d9;
-  outline-offset: 3px;
+  outline: 2px solid #8175d9;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stat-link {
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .stat-link:hover {
+    transform: none;
+  }
 }
 .demo-banner {
   display: flex;
@@ -1143,15 +1145,6 @@ h3 {
 .toolbar {
   align-items: flex-start;
 }
-@media (prefers-reduced-motion: reduce) {
-  .stat-link {
-    transition: none;
-  }
-  .stat-link:hover {
-    transform: none;
-  }
-}
-
 .project-settings {
   width: 100%;
   max-width: 800px;

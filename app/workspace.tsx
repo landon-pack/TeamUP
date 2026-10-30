@@ -18,7 +18,6 @@ import {
   FolderOpen,
   Users,
   Plus,
-  ChevronRight,
   Bell,
   Sparkles,
   ArrowUpRight,
@@ -655,12 +654,8 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
       <main className='app-main'>
         <header className='topbar'>
           <div className='flex gap-3 items-center'>
-            <SidebarTrigger />
-            <div className='crumb'>
-              Workspace
-              <ChevronRight size={13} />
-              <strong>{view}</strong>
-            </div>
+            {/* Sidebar toggle only on small screens — desktop already shows the sidebar. */}
+            <SidebarTrigger className='mobile-sidebar-trigger' />
             <span className='mobile-title'>teamup.</span>
           </div>
           <div className='top-actions'>
