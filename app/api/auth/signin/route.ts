@@ -2,7 +2,8 @@
  * POST /api/auth/signin
  *
  * Signs in with email or username + password.
- * Verifies the stored password hash, then sets the session cookie.
+ * On localhost only, also accepts the hardcoded test account (see lib/local-dev-account.ts).
+ * That path writes only to the local Miniflare D1 — never the live Cloudflare DB.
  */
 
 import {
@@ -11,9 +12,14 @@ import {
   sessionCookieHeader,
   validateSignIn,
 } from '@/lib/auth';
-import { verifyPassword } from '@/lib/password';
+import {
+  isLocalDevHost,
+  LOCAL_DEV_ACCOUNT,
+  matchesLocalDevAccount,
+} from '@/lib/local-dev-account';
+import { hashPassword, verifyPassword } from '@/lib/password';
 import { sameOrigin, runtime } from '@/lib/server';
-import { findUserByLogin } from '@/lib/store';
+import { ensureLocalDevUser, findUserByLogin } from '@/lib/store';
 
 const INVALID = 'Invalid email/username or password.';
 
@@ -28,6 +34,34 @@ export async function POST(req: Request) {
       password?: string;
       returnTo?: string;
     };
+
+    const rawLogin =
+      (typeof body.login === 'string' && body.login) ||
+      (typeof body.email === 'string' && body.email) ||
+      (typeof body.username === 'string' && body.username) ||
+      '';
+    const rawPassword = typeof body.password === 'string' ? body.password : '';
+
+    // Localhost-only test account → blank workspace on the local DB, not production.
+    if (isLocalDevHost(req) && matchesLocalDevAccount(rawLogin, rawPassword)) {
+      const passwordHash = await hashPassword(LOCAL_DEV_ACCOUNT.password);
+      await ensureLocalDevUser(runtime().DB, {
+        authId: 'email:' + LOCAL_DEV_ACCOUNT.email,
+        email: LOCAL_DEV_ACCOUNT.email,
+        username: LOCAL_DEV_ACCOUNT.username,
+        firstName: LOCAL_DEV_ACCOUNT.firstName,
+        lastName: LOCAL_DEV_ACCOUNT.lastName,
+        name: LOCAL_DEV_ACCOUNT.name,
+        passwordHash,
+      });
+
+      const token = await createSessionToken(LOCAL_DEV_ACCOUNT.email, LOCAL_DEV_ACCOUNT.name);
+      const secure = new URL(req.url).protocol === 'https:';
+      return Response.json(
+        { ok: true, returnTo: safeReturnPath(body.returnTo) },
+        { headers: { 'Set-Cookie': sessionCookieHeader(token, secure) } },
+      );
+    }
 
     const validated = validateSignIn(body);
     if (!validated.ok) {

@@ -1364,6 +1364,24 @@ h3 {
   font-size: 15px;
   line-height: 1.55;
 }
+.auth-local-hint {
+  margin: -8px 0 18px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f3f1ff;
+  border: 1px solid #e0dbff;
+  color: #4b4578;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.auth-local-hint code {
+  font-weight: 700;
+  color: #3f3aad;
+}
+.auth-local-hint span {
+  color: #7a72a9;
+  font-size: 12px;
+}
 .auth-form {
   display: flex;
   flex-direction: column;

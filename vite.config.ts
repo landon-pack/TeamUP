@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import vinext from "vinext";
 import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
@@ -13,10 +15,29 @@ const { d1, r2 } = hostingConfig;
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const managedLinux = readExecutionProfile() === "managed-linux";
 
+/** Prefer the committed wrangler.toml D1 id so `npm run dev` and `cf:migrate --local` share one DB. */
+function readWranglerD1() {
+  try {
+    const toml = readFileSync(fileURLToPath(new URL("./wrangler.toml", import.meta.url)), "utf8");
+    return {
+      databaseId: toml.match(/database_id\s*=\s*"([^"]+)"/)?.[1],
+      databaseName: toml.match(/database_name\s*=\s*"([^"]+)"/)?.[1],
+      bucketName: toml.match(/bucket_name\s*=\s*"([^"]+)"/)?.[1],
+    };
+  } catch {
+    return {};
+  }
+}
+
+const wranglerD1 = readWranglerD1();
 const d1DatabaseId =
-  process.env.CLOUDFLARE_D1_DATABASE_ID || SITE_CREATOR_PLACEHOLDER_DATABASE_ID;
-const d1DatabaseName = process.env.CLOUDFLARE_D1_DATABASE_NAME || "teamup";
-const r2BucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME || "teamup-files";
+  process.env.CLOUDFLARE_D1_DATABASE_ID ||
+  wranglerD1.databaseId ||
+  SITE_CREATOR_PLACEHOLDER_DATABASE_ID;
+const d1DatabaseName =
+  process.env.CLOUDFLARE_D1_DATABASE_NAME || wranglerD1.databaseName || "teamup";
+const r2BucketName =
+  process.env.CLOUDFLARE_R2_BUCKET_NAME || wranglerD1.bucketName || "teamup-files";
 
 // Keep flags in wrangler.toml only — duplicating nodejs_compat here makes Miniflare crash.
 const localBindingConfig = {

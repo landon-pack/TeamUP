@@ -6,9 +6,11 @@
  * TODO(teammate): polish visual design / copy.
  * Safe to edit: headings, labels, placeholders, classNames, surrounding markup.
  * Prefer keeping handleSubmit + signInAccount as-is so auth keeps working.
+ *
+ * On localhost, a hardcoded test account works (admin / teamup) — local DB only.
  */
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import {
   DEFAULT_AFTER_AUTH_PATH,
   readReturnToParam,
@@ -20,6 +22,12 @@ export default function SignInPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showLocalHint, setShowLocalHint] = useState(false);
+
+  useEffect(() => {
+    const host = window.location.hostname;
+    setShowLocalHint(host === 'localhost' || host === '127.0.0.1');
+  }, []);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -49,6 +57,14 @@ export default function SignInPage() {
 
         <h1>Welcome back</h1>
         <p className='auth-lede'>Sign in with your email or username and password.</p>
+
+        {showLocalHint ? (
+          <p className='auth-local-hint'>
+            Local test login: <code>admin</code> / <code>teamup</code>
+            <br />
+            <span>Uses this machine only — not the live Cloudflare database.</span>
+          </p>
+        ) : null}
 
         <form className='auth-form' onSubmit={handleSubmit}>
           <label>

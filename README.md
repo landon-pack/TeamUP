@@ -57,6 +57,11 @@ Open the URL it prints (usually **http://localhost:5173/**).
 
 Create an account at **/signup** (first name, last name, username, email, password). Sign in at **/signin** with email or username + password. Use the same email teammates invite you with.
 
+**Local test login** (only on `localhost` — never the live site; uses your machine’s local D1, not Cloudflare production):
+
+- Username: `admin` (or email `admin@teamup.local`)
+- Password: `teamup`
+
 If you see a Vite error about a missing file in `node_modules/.vite`, stop the server (`Ctrl+C`) and run:
 
 ```bash

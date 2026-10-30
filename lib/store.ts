@@ -21,6 +21,51 @@ export async function ensureUser(db: D1Database, authId: string, email: string, 
   return { userId: id, authUserId: authId, email, displayName: row!.name };
 }
 
+/**
+ * Upsert the hardcoded localhost test account into D1.
+ * Safe to call on every local admin sign-in.
+ */
+export async function ensureLocalDevUser(
+  db: D1Database,
+  input: {
+    authId: string;
+    email: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    name: string;
+    passwordHash: string;
+  },
+) {
+  const id = userKey(input.email);
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO users(id,auth_id,name,first_name,last_name,username,email,password_hash)
+         VALUES(?,?,?,?,?,?,?,?)
+         ON CONFLICT(id) DO UPDATE SET
+           auth_id=excluded.auth_id,
+           name=excluded.name,
+           first_name=excluded.first_name,
+           last_name=excluded.last_name,
+           username=excluded.username,
+           password_hash=excluded.password_hash`,
+      )
+      .bind(
+        id,
+        input.authId,
+        input.name,
+        input.firstName,
+        input.lastName,
+        input.username,
+        input.email,
+        input.passwordHash,
+      ),
+    db.prepare('INSERT OR IGNORE INTO settings(user_id) VALUES(?)').bind(id),
+  ]);
+  return { userId: id, authUserId: input.authId, email: input.email, displayName: input.name };
+}
+
 export type PasswordUserRow = {
   id: string;
   auth_id: string | null;
