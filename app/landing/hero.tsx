@@ -4,6 +4,9 @@ import { LANDING_ROUTES } from './routes';
 export function LandingHero() {
   return (
     <section className='landing-hero'>
+      <nav className='landing-nav' aria-label='Main navigation'>
+        <a href='#about'>About Us</a>
+      </nav>
       <div className='landing-hero-copy'>
         <p className='landing-brand'>
           teamup<span>.</span>

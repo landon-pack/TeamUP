@@ -681,7 +681,20 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
             >
               <Bell size={19} />
             </button>
-            <span className='avatar'>{initials(user?.name || 'You')}</span>
+            <button
+              type='button'
+              className='avatar profile-avatar-button'
+              aria-label='Open profile settings'
+              title='Profile settings'
+              onClick={() =>
+                open('profile', {
+                  ...user,
+                  timeZone: user?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                })
+              }
+            >
+              {initials(user?.username || user?.name || 'You')}
+            </button>
           </div>
         </header>
         <div className='content'>
@@ -1153,7 +1166,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                       {fmt(future(i))}
                     </div>
                   ))}
-                  {[9, 11, 13, 15, 17, 19].map((hour) => (
+                  {Array.from({ length: 16 }, (_, i) => i + 7).map((hour) => (
                     <div className='contents' key={hour}>
                       <span className='time'>
                         {hour > 12 ? hour - 12 : hour}
@@ -1173,11 +1186,14 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                         return (
                           <button
                             key={key}
-                            aria-label={`${fmt(future(i))} at ${hour}:00${past ? ', time has passed' : ''}`}
+                            aria-label={`${fmt(future(i))} at ${hour % 12 || 12}:00 ${hour < 12 ? 'AM' : 'PM'}${past ? ', time has passed' : ''}`}
                             aria-pressed={selected}
                             disabled={busy || past}
                             className={
-                              'slot ' + (selected ? 'selected ' : '') + (common ? 'common ' : '') + (past ? 'past' : '')
+                              'slot ' +
+                              (selected ? 'selected ' : '') +
+                              (common ? 'common ' : '') +
+                              (past ? 'past' : '')
                             }
                             onClick={() => {
                               if (requireProject())
