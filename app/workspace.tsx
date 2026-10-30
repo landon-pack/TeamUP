@@ -31,6 +31,7 @@ import {
   Download,
   Settings,
   ArrowRight,
+  LockKeyhole,
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -1148,7 +1149,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 <div className='schedule'>
                   <span />
                   {Array.from({ length: 7 }, (_, i) => (
-                    <div className='day' key={i}>
+                    <div className='day' key={`date-${i}`}>
                       {fmt(future(i))}
                     </div>
                   ))}
@@ -1162,6 +1163,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                         const key = new Date(
                           future(i) + 'T' + String(hour).padStart(2, '0') + ':00',
                         ).toISOString();
+                        const past = new Date(key) < new Date();
                         const selected = (project.availability[me] || []).includes(key);
                         const schedules = Object.values(project.availability).filter(
                           (a) => a.length,
@@ -1171,11 +1173,11 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                         return (
                           <button
                             key={key}
-                            aria-label={`${fmt(future(i))} at ${hour}:00`}
+                            aria-label={`${fmt(future(i))} at ${hour}:00${past ? ', time has passed' : ''}`}
                             aria-pressed={selected}
-                            disabled={busy || new Date(key) < new Date()}
+                            disabled={busy || past}
                             className={
-                              'slot ' + (selected ? 'selected ' : '') + (common ? 'common' : '')
+                              'slot ' + (selected ? 'selected ' : '') + (common ? 'common ' : '') + (past ? 'past' : '')
                             }
                             onClick={() => {
                               if (requireProject())
@@ -1190,9 +1192,23 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                                 });
                             }}
                           >
-                            {selected ? <Check size={14} className='mx-auto' /> : ''}
+                            {past ? (
+                              <LockKeyhole size={14} className='availability-lock mx-auto' aria-hidden='true' />
+                            ) : selected ? (
+                              <Check size={14} className='mx-auto' />
+                            ) : (
+                              ''
+                            )}
                           </button>
                         );
+                      })}
+                    </div>
+                  ))}
+                  <span />
+                  {Array.from({ length: 7 }, (_, i) => (
+                    <div className='day-of-week' key={`weekday-${i}`}>
+                      {new Date(future(i) + 'T12:00:00').toLocaleDateString('en-US', {
+                        weekday: 'short',
                       })}
                     </div>
                   ))}
