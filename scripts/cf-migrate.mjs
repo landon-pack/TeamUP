@@ -94,10 +94,10 @@ try {
       continue;
     }
     const source = path.join(root, 'drizzle', `${entry.tag}.sql`);
+    // Strip drizzle breakpoints in-place (they may share a line with SQL).
+    // Do NOT drop whole lines — that would delete ALTER statements.
     const cleaned = readFileSync(source, 'utf8')
-      .split('\n')
-      .filter((line) => !line.includes('--> statement-breakpoint'))
-      .join('\n')
+      .replace(/-->\s*statement-breakpoint/g, '')
       .replace(/CREATE TABLE `/g, 'CREATE TABLE IF NOT EXISTS `')
       .replace(/CREATE (UNIQUE )?INDEX `/g, 'CREATE $1INDEX IF NOT EXISTS `');
 
