@@ -155,6 +155,19 @@ a:focus-visible {
   background: #ffe9d8;
   color: #a97038;
 }
+.profile-avatar-button {
+  padding: 0;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.profile-avatar-button:hover {
+  box-shadow: 0 0 0 3px #eeecfa;
+  transform: translateY(-1px);
+}
+.profile-avatar-button:focus-visible {
+  outline: 2px solid #6352bb;
+  outline-offset: 3px;
+}
 .content {
   max-width: 1480px;
   margin: auto;
@@ -221,8 +234,9 @@ h3 {
   height: 16px;
 }
 .project-banner {
-  background: #eeedfc;
+  background: #dbd9fc;
   border: 1px solid #e0ddf7;
+  border-left: 4px solid #6251df;
   border-radius: 13px;
   padding: 25px 26px;
   display: flex;
@@ -338,12 +352,17 @@ h3 {
   background: #fff;
   overflow: hidden;
 }
+.workspace-grid .panel,
+.workspace-grid .planner-card {
+  border: 1px solid #6251df;
+}
 .panel-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 21px 22px;
   gap: 12px;
+  background: #dbd9fc;
 }
 .panel-heading .btn {
   font-size: 13px;
@@ -438,7 +457,7 @@ h3 {
 }
 .planner-card .btn {
   width: 100%;
-  background: white;
+  background: #dbd9fc;
   color: #7661ba;
   border-color: #e0d8f3;
 }
@@ -447,6 +466,9 @@ h3 {
   align-items: center;
   gap: 10px;
   padding: 0 22px 18px;
+}
+.team-list-panel .panel-heading + .member-row {
+  padding-top: 18px;
 }
 .member-row .member-name {
   flex: 1;
@@ -513,7 +535,7 @@ h3 {
   padding: 12px 17px;
   border-radius: 8px;
   background: #f1efff;
-  color: #77709a;
+  color: hsl(250, 17%, 52%);
   font-size: 13px;
   margin-bottom: 20px;
   line-height: 1.6;
@@ -527,29 +549,75 @@ h3 {
 }
 .schedule .day {
   text-align: center;
-  font-size: 13px;
-  color: #7f879a;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3f4656;
   padding-bottom: 10px;
+}
+.schedule .day-of-week {
+  border-top: 1px solid #e6e9f0;
+  padding-top: 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4f586a;
 }
 .slot {
   height: 42px;
   border-radius: 6px;
-  border: 1px solid #e7e9f0;
-  background: #f8f9fc;
+  border: 2px solid #b1a4ee;
+  background: #e7e5fd;
   color: #8c93a2;
   font-size: 12px;
 }
+.slot:not(:disabled) {
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
+}
+.slot:not(:disabled):hover {
+  border-color: #5b54d9;
+  box-shadow: 0 3px 8px #5b54d933;
+  transform: translateY(-1px);
+}
+.slot:not(:disabled):active {
+  transform: translateY(0) scale(0.98);
+}
+.slot:focus-visible {
+  outline: 3px solid #5b54d9;
+  outline-offset: 2px;
+}
 .slot.selected {
-  background: #cfc9f9;
-  border-color: #b1a4ee;
-  color: #5845a5;
+  background: #5b54d9;
+  border-color: #5b54d9;
+  color: #fff;
 }
 .slot.common {
   box-shadow: inset 0 0 0 2px #5b54d9;
 }
+.slot.selected.common {
+  box-shadow: inset 0 0 0 2px #fff;
+}
+.slot.past {
+  opacity: 1;
+  cursor: default;
+}
+.slot:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.slot.past .availability-lock {
+  color: #6251df;
+}
+.slot.past.selected .availability-lock {
+  color: #dbd9fc;
+}
 .time {
-  font-size: 12px;
-  color: #939aaa;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4f586a;
   display: flex;
   align-items: center;
 }
@@ -893,7 +961,7 @@ h3 {
   text-align: center;
 }
 .context-body {
-  padding: 0 22px 22px;
+  padding: 18px 22px 22px;
 }
 .context-body p {
   font-size: 14px;
@@ -955,7 +1023,7 @@ h3 {
 
 .welcome-panel {
   min-height: 380px;
-  background: white;
+  background: #c7c4f5;
   border: 1px solid #e0e3ee;
   border-radius: 20px;
   display: flex;
@@ -1096,10 +1164,13 @@ h3 {
   flex: 1;
   min-width: 200px;
 }
+.demo-banner-action {
+  border-color: #a8afbd;
+}
 .tutorial-card {
   border: 1px solid #bdb4f4;
   border-left: 4px solid #6251df;
-  background: white;
+  background: #dbd9fc;
   border-radius: 12px;
   padding: 20px 24px;
   margin-bottom: 24px;
@@ -1156,7 +1227,7 @@ h3 {
 }
 .project-settings .panel-heading {
   justify-content: center;
-  padding: 0 0 22px;
+  padding: 16px 0 22px;
 }
 .project-settings .subtext {
   max-width: 600px;
@@ -1190,6 +1261,9 @@ h3 {
 .project-settings > .panel > .btn {
   margin-inline: auto;
 }
+.project-settings .delete-project-button {
+  margin-top: 14px;
+}
 
 /* =============================================================================
    Landing page (`/`) — styles for app/landing/*.tsx
@@ -1219,10 +1293,71 @@ h3 {
   margin: 0 0 10px;
 }
 .landing-hero {
+  position: relative;
   min-height: min(92vh, 860px);
   display: flex;
   align-items: center;
   padding: clamp(32px, 6vw, 72px) clamp(20px, 5vw, 64px);
+}
+.landing-nav {
+  position: absolute;
+  top: clamp(20px, 4vw, 40px);
+  right: clamp(20px, 5vw, 64px);
+}
+.landing-nav a,
+.landing-page .landing-cta-row .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 112px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+.landing-nav a {
+  border: 1px solid #dedbed;
+  color: #4c456e;
+  background: rgb(255 255 255 / 72%);
+}
+.landing-nav a:hover {
+  color: #5149c7;
+  border-color: #bdb7ec;
+  background: #fff;
+}
+.landing-page .landing-cta-row .btn.subtle {
+  padding: 0 14px;
+  border: 1px solid #e0e4ed;
+  background: #fff;
+  color: #5149c7;
+}
+.landing-page .landing-cta-row .btn:hover {
+  border-color: #bdb7ec;
+  box-shadow: 0 3px 10px #5149c71a;
+  transform: translateY(-1px);
+}
+.landing-page .landing-cta-row .btn.primary:hover {
+  background: #4f48c7;
+  border-color: #4f48c7;
+}
+.landing-nav a:focus-visible,
+.landing-page .landing-cta-row .btn:focus-visible {
+  outline: 2px solid #6352bb;
+  outline-offset: 3px;
+}
+.landing-about {
+  scroll-margin-top: 24px;
 }
 .landing-hero-copy {
   max-width: 640px;
@@ -1325,13 +1460,22 @@ h3 {
   overflow: hidden;
   border: 1px solid #e0e3ee;
   background: #fff;
-  min-height: 280px;
 }
 .landing-visual-frame img {
   display: block;
   width: 100%;
-  height: auto;
+  aspect-ratio: 3 / 2;
   object-fit: cover;
+}
+.landing-visual-frame figcaption {
+  padding: 10px 14px;
+  color: #7a8497;
+  font-size: 12px;
+}
+.landing-visual-frame figcaption a {
+  color: #5b54d9;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .landing-visual-placeholder {
   min-height: 320px;

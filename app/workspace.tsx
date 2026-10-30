@@ -30,6 +30,7 @@ import {
   Download,
   Settings,
   ArrowRight,
+  LockKeyhole,
 } from 'lucide-react';
 import {
   SidebarProvider,
@@ -675,7 +676,20 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
             >
               <Bell size={19} />
             </button>
-            <span className='avatar'>{initials(user?.name || 'You')}</span>
+            <button
+              type='button'
+              className='avatar profile-avatar-button'
+              aria-label='Open profile settings'
+              title='Profile settings'
+              onClick={() =>
+                open('profile', {
+                  ...user,
+                  timeZone: user?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+                })
+              }
+            >
+              {initials(user?.username || user?.name || 'You')}
+            </button>
           </div>
         </header>
         <div className='content'>
@@ -698,7 +712,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 )}
               </span>
               <button
-                className='btn'
+                className='btn demo-banner-action'
                 onClick={() => {
                   if (isLocalAdmin) {
                     startLocalAdminWorkspace();
@@ -714,7 +728,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 Reset
               </button>
               <a
-                className='btn'
+                className='btn demo-banner-action'
                 href={isLocalAdmin ? '/api/auth/signout?return_to=%2F' : '/'}
                 onClick={() => {
                   if (isLocalAdmin) clearLocalAdminSession();
@@ -1143,11 +1157,11 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 <div className='schedule'>
                   <span />
                   {Array.from({ length: 7 }, (_, i) => (
-                    <div className='day' key={i}>
+                    <div className='day' key={`date-${i}`}>
                       {fmt(future(i))}
                     </div>
                   ))}
-                  {[9, 11, 13, 15, 17, 19].map((hour) => (
+                  {Array.from({ length: 16 }, (_, i) => i + 7).map((hour) => (
                     <div className='contents' key={hour}>
                       <span className='time'>
                         {hour > 12 ? hour - 12 : hour}
@@ -1157,6 +1171,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                         const key = new Date(
                           future(i) + 'T' + String(hour).padStart(2, '0') + ':00',
                         ).toISOString();
+                        const past = new Date(key) < new Date();
                         const selected = (project.availability[me] || []).includes(key);
                         const schedules = Object.values(project.availability).filter(
                           (a) => a.length,
@@ -1166,11 +1181,14 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                         return (
                           <button
                             key={key}
-                            aria-label={`${fmt(future(i))} at ${hour}:00`}
+                            aria-label={`${fmt(future(i))} at ${hour % 12 || 12}:00 ${hour < 12 ? 'AM' : 'PM'}${past ? ', time has passed' : ''}`}
                             aria-pressed={selected}
-                            disabled={busy || new Date(key) < new Date()}
+                            disabled={busy || past}
                             className={
-                              'slot ' + (selected ? 'selected ' : '') + (common ? 'common' : '')
+                              'slot ' +
+                              (selected ? 'selected ' : '') +
+                              (common ? 'common ' : '') +
+                              (past ? 'past' : '')
                             }
                             onClick={() => {
                               if (requireProject())
@@ -1185,9 +1203,23 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                                 });
                             }}
                           >
-                            {selected ? <Check size={14} className='mx-auto' /> : ''}
+                            {past ? (
+                              <LockKeyhole size={14} className='availability-lock mx-auto' aria-hidden='true' />
+                            ) : selected ? (
+                              <Check size={14} className='mx-auto' />
+                            ) : (
+                              ''
+                            )}
                           </button>
                         );
+                      })}
+                    </div>
+                  ))}
+                  <span />
+                  {Array.from({ length: 7 }, (_, i) => (
+                    <div className='day-of-week' key={`weekday-${i}`}>
+                      {new Date(future(i) + 'T12:00:00').toLocaleDateString('en-US', {
+                        weekday: 'short',
                       })}
                     </div>
                   ))}
@@ -1258,12 +1290,12 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
             <>
               <div className='notice flex flex-wrap items-center justify-between gap-3'>
                 <span>Manage your teammates here. Share this project from Project settings.</span>
-                <button className='btn' onClick={() => setView('Project settings')}>
+                <button className='btn demo-banner-action' onClick={() => setView('Project settings')}>
                   <Settings size={16} />
                   Project settings
                 </button>
               </div>
-              <section className='panel'>
+              <section className='panel team-list-panel'>
                 <div className='panel-heading'>
                   <h2>Your project team</h2>
                 </div>
@@ -1324,7 +1356,7 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
                 </div>
                 {isOwner ? (
                   <button
-                    className='btn danger'
+                    className='btn danger delete-project-button'
                     onClick={() => open('delete-project', { confirmation: '' })}
                   >
                     Delete project
