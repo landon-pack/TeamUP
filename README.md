@@ -55,7 +55,7 @@ npm run dev
 
 Open the URL it prints (usually **http://localhost:5173/**).
 
-Sign in at **/signin** with your **name + school email**. Use the same email every time.
+Create an account at **/signup** (name, username, email, password). Sign in at **/signin** with email or username + password. Use the same email teammates invite you with.
 
 If you see a Vite error about a missing file in `node_modules/.vite`, stop the server (`Ctrl+C`) and run:
 
@@ -82,7 +82,7 @@ Edit code, keep `npm run dev` running, and check changes in the browser.
 | Hero + Sign up / Sign in / Demo buttons | `app/landing/hero.tsx` |
 | About Us copy | `app/landing/about.tsx` |
 | Image placeholder → real photos | `app/landing/visual.tsx` (+ put files in `public/landing/`) |
-| Sign up (working) | `app/signup/page.tsx` |
+| Sign up (working; password + username) | `app/signup/page.tsx` |
 | Sign in (works; polish the UI) | `app/signin/page.tsx` |
 | Shared auth API helper | `lib/auth-client.ts` |
 
@@ -128,7 +128,7 @@ git push -u origin HEAD  # then open a PR
 
 ## Sign-in notes
 
-- Sign-in is **email + display name** (no password for this class project)
+- Accounts use **username + email + password** (sign in with email or username)
 - Use the **same email** teammates invite you with
 - Live-site data persists in Cloudflare D1 (refresh won’t wipe it)
 

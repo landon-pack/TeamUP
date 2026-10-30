@@ -43,6 +43,13 @@
       "when": 1791827163676,
       "tag": "0005_massive_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793310000000,
+      "tag": "0006_password_accounts",
+      "breakpoints": true
     }
   ]
 }

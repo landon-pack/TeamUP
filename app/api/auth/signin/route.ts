@@ -1,8 +1,8 @@
 /**
  * POST /api/auth/signin
  *
- * Shared by both Sign up and Sign in pages.
- * Validates name + email, sets an HMAC-signed session cookie, returns returnTo.
+ * Signs in with email or username + password.
+ * Verifies the stored password hash, then sets the session cookie.
  */
 
 import {
@@ -11,24 +11,54 @@ import {
   sessionCookieHeader,
   validateSignIn,
 } from '@/lib/auth';
-import { sameOrigin } from '@/lib/server';
+import { verifyPassword } from '@/lib/password';
+import { sameOrigin, runtime } from '@/lib/server';
+import { findUserByLogin } from '@/lib/store';
+
+const INVALID = 'Invalid email/username or password.';
 
 export async function POST(req: Request) {
   try {
     sameOrigin(req);
 
     const body = (await req.json()) as {
+      login?: string;
       email?: string;
-      name?: string;
+      username?: string;
+      password?: string;
       returnTo?: string;
     };
 
     const validated = validateSignIn(body);
-    if ('error' in validated) {
+    if (!validated.ok) {
       return Response.json({ error: validated.error }, { status: 400 });
     }
 
-    const token = await createSessionToken(validated.email, validated.name);
+    const user = await findUserByLogin(runtime().DB, {
+      email: validated.email,
+      username: validated.username,
+    });
+
+    if (!user) {
+      return Response.json({ error: INVALID }, { status: 401 });
+    }
+
+    if (!user.password_hash) {
+      return Response.json(
+        {
+          error:
+            'This account has no password yet. Create a new account on Sign up with this email.',
+        },
+        { status: 401 },
+      );
+    }
+
+    const ok = await verifyPassword(validated.password, user.password_hash);
+    if (!ok) {
+      return Response.json({ error: INVALID }, { status: 401 });
+    }
+
+    const token = await createSessionToken(user.email, user.name);
     const secure = new URL(req.url).protocol === 'https:';
 
     return Response.json(

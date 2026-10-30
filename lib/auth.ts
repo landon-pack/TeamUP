@@ -1,12 +1,13 @@
 /**
- * Server-side session auth (email + display name, no password).
+ * Server-side session auth (email/username + password).
  *
  * How it works:
- * 1. /signup or /signin POSTs name+email to /api/auth/signin
- * 2. That route calls createSessionToken() and sets the `teamup_session` cookie
+ * 1. /signup POSTs account fields to /api/auth/signup → creates user + sets cookie
+ * 2. /signin POSTs login + password to /api/auth/signin → verifies hash + sets cookie
  * 3. Later requests call getSessionUser() to read the signed cookie
  *
  * Browser helpers live in lib/auth-client.ts.
+ * Password hashing lives in lib/password.ts.
  * Cookie crypto (HMAC) stays in this file — do not call from client components.
  */
 
@@ -24,6 +25,10 @@ export type SessionUser = {
 /** Cookie name sent to the browser after a successful sign-in / sign-up. */
 export const SESSION_COOKIE = 'teamup_session';
 const SESSION_DAYS = 30;
+
+const USERNAME_RE = /^[a-z0-9_]{3,24}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD = 8;
 
 /** Compact fields inside the signed cookie payload. */
 type SessionPayload = {
@@ -80,19 +85,120 @@ export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
-export function validateSignIn(input: { email?: unknown; name?: unknown }) {
+export function normalizeUsername(username: string) {
+  return username.trim().toLowerCase();
+}
+
+type AuthError = { ok: false; error: string };
+type AuthOk<T> = { ok: true } & T;
+
+export function validateUsername(raw: unknown): AuthError | AuthOk<{ username: string }> {
+  const username = typeof raw === 'string' ? normalizeUsername(raw) : '';
+  if (!USERNAME_RE.test(username)) {
+    return {
+      ok: false,
+      error: 'Username must be 3–24 characters: lowercase letters, numbers, or underscores.',
+    };
+  }
+  return { ok: true, username };
+}
+
+export function validatePassword(raw: unknown): AuthError | AuthOk<{ password: string }> {
+  const password = typeof raw === 'string' ? raw : '';
+  if (password.length < MIN_PASSWORD) {
+    return { ok: false, error: `Password must be at least ${MIN_PASSWORD} characters.` };
+  }
+  if (password.length > 200) {
+    return { ok: false, error: 'Password is too long.' };
+  }
+  return { ok: true, password };
+}
+
+/** Validate fields for creating a new account. */
+export function validateSignUp(input: {
+  name?: unknown;
+  username?: unknown;
+  email?: unknown;
+  password?: unknown;
+  confirmPassword?: unknown;
+}):
+  | AuthError
+  | AuthOk<{ name: string; username: string; email: string; password: string }> {
   const email = typeof input.email === 'string' ? normalizeEmail(input.email) : '';
   const name =
     typeof input.name === 'string'
       ? input.name.trim().replace(/\s+/g, ' ').slice(0, 80)
       : '';
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
-    return { error: 'Enter a valid email address.' as const };
-  }
+
   if (!name || name.length < 2) {
-    return { error: 'Enter your name (at least 2 characters).' as const };
+    return { ok: false, error: 'Enter your name (at least 2 characters).' };
   }
-  return { email, name };
+
+  const usernameResult = validateUsername(input.username);
+  if (!usernameResult.ok) return usernameResult;
+
+  if (!email || !EMAIL_RE.test(email) || email.length > 254) {
+    return { ok: false, error: 'Enter a valid email address.' };
+  }
+
+  const passwordResult = validatePassword(input.password);
+  if (!passwordResult.ok) return passwordResult;
+
+  const confirm = typeof input.confirmPassword === 'string' ? input.confirmPassword : '';
+  if (passwordResult.password !== confirm) {
+    return { ok: false, error: 'Passwords do not match.' };
+  }
+
+  return {
+    ok: true,
+    name,
+    username: usernameResult.username,
+    email,
+    password: passwordResult.password,
+  };
+}
+
+/** Validate fields for signing in (email or username + password). */
+export function validateSignIn(input: {
+  login?: unknown;
+  email?: unknown;
+  username?: unknown;
+  password?: unknown;
+}):
+  | AuthError
+  | AuthOk<{ email: string | null; username: string | null; password: string }> {
+  const loginRaw =
+    typeof input.login === 'string'
+      ? input.login.trim()
+      : typeof input.email === 'string'
+        ? input.email.trim()
+        : typeof input.username === 'string'
+          ? input.username.trim()
+          : '';
+
+  if (!loginRaw) {
+    return { ok: false, error: 'Enter your email or username.' };
+  }
+
+  const password = typeof input.password === 'string' ? input.password : '';
+  if (!password) {
+    return { ok: false, error: 'Enter your password.' };
+  }
+
+  const looksLikeEmail = loginRaw.includes('@');
+  if (looksLikeEmail) {
+    const email = normalizeEmail(loginRaw);
+    if (!EMAIL_RE.test(email) || email.length > 254) {
+      return { ok: false, error: 'Enter a valid email address.' };
+    }
+    return { ok: true, email, username: null, password };
+  }
+
+  const usernameResult = validateUsername(loginRaw);
+  if (!usernameResult.ok) {
+    return { ok: false, error: 'Enter a valid email or username.' };
+  }
+  return { ok: true, email: null, username: usernameResult.username, password };
 }
 
 export async function createSessionToken(email: string, name: string) {
@@ -106,7 +212,9 @@ export async function createSessionToken(email: string, name: string) {
   return `${body}.${await sign(body)}`;
 }
 
-export async function readSessionToken(token: string | undefined | null): Promise<SessionUser | null> {
+export async function readSessionToken(
+  token: string | undefined | null,
+): Promise<SessionUser | null> {
   if (!token) return null;
   const [body, signature] = token.split('.');
   if (!body || !signature) return null;

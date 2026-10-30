@@ -100,19 +100,46 @@ try {
       .join('\n')
       .replace(/CREATE TABLE `/g, 'CREATE TABLE IF NOT EXISTS `')
       .replace(/CREATE (UNIQUE )?INDEX `/g, 'CREATE $1INDEX IF NOT EXISTS `');
-    const file = path.join(tempDir, `${entry.tag}.sql`);
-    writeFileSync(file, cleaned);
+
+    // D1 can fail multi-statement files that mix ALTER + CREATE INDEX.
+    // Run one statement at a time so each change is visible to the next.
+    const statements = cleaned
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean);
+
     console.log('→', entry.tag);
-    run([
-      'd1',
-      'execute',
-      'teamup',
-      ...location,
-      '--config',
-      'wrangler.toml',
-      '--file',
-      file,
-    ]);
+    for (const [index, statement] of statements.entries()) {
+      const file = path.join(tempDir, `${entry.tag}-${index}.sql`);
+      writeFileSync(file, `${statement};`);
+      const result = run(
+        [
+          'd1',
+          'execute',
+          'teamup',
+          ...location,
+          '--config',
+          'wrangler.toml',
+          '--file',
+          file,
+        ],
+        { inherit: false, allowFail: true },
+      );
+      if (result.status !== 0) {
+        const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+        // Idempotent retry: column/index already exists from a partial earlier run.
+        if (
+          /duplicate column name|already exists/i.test(output) ||
+          /SQLITE_ERROR.*duplicate/i.test(output)
+        ) {
+          console.log('  (already applied)', statement.slice(0, 60));
+          continue;
+        }
+        console.error(output);
+        process.exit(result.status ?? 1);
+      }
+    }
+
     const now = new Date().toISOString();
     const mark = executeSql(
       `INSERT OR IGNORE INTO _teamup_schema_migrations(id, applied_at) VALUES('${entry.tag}', '${now}')`,

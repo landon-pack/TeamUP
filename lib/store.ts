@@ -5,6 +5,7 @@ const scoped = (project: string, id: string) =>
   id.startsWith(project + ':') ? id : project + ':' + id;
 export async function ensureUser(db: D1Database, authId: string, email: string, name: string) {
   const id = userKey(email);
+  // Does not touch username / password_hash — those are set only at signup.
   await db.batch([
     db
       .prepare(
@@ -18,6 +19,86 @@ export async function ensureUser(db: D1Database, authId: string, email: string, 
     .bind(id)
     .first<{ name: string }>();
   return { userId: id, authUserId: authId, email, displayName: row!.name };
+}
+
+export type PasswordUserRow = {
+  id: string;
+  auth_id: string | null;
+  name: string;
+  username: string | null;
+  email: string;
+  password_hash: string | null;
+};
+
+/** Look up a password account by email or username. */
+export async function findUserByLogin(
+  db: D1Database,
+  login: { email: string | null; username: string | null },
+) {
+  if (login.email) {
+    return db
+      .prepare(
+        'SELECT id, auth_id, name, username, email, password_hash FROM users WHERE email=? LIMIT 1',
+      )
+      .bind(login.email)
+      .first<PasswordUserRow>();
+  }
+  if (login.username) {
+    return db
+      .prepare(
+        'SELECT id, auth_id, name, username, email, password_hash FROM users WHERE username=? LIMIT 1',
+      )
+      .bind(login.username)
+      .first<PasswordUserRow>();
+  }
+  return null;
+}
+
+/** Create a new password account. Throws CONFLICT if email or username is taken. */
+export async function createPasswordUser(
+  db: D1Database,
+  input: {
+    authId: string;
+    email: string;
+    name: string;
+    username: string;
+    passwordHash: string;
+  },
+) {
+  const id = userKey(input.email);
+
+  const emailTaken = await db
+    .prepare('SELECT 1 AS ok FROM users WHERE email=? OR id=? LIMIT 1')
+    .bind(input.email, id)
+    .first();
+  if (emailTaken) throw new Error('EMAIL_TAKEN');
+
+  const usernameTaken = await db
+    .prepare('SELECT 1 AS ok FROM users WHERE username=? LIMIT 1')
+    .bind(input.username)
+    .first();
+  if (usernameTaken) throw new Error('USERNAME_TAKEN');
+
+  try {
+    await db.batch([
+      db
+        .prepare(
+          'INSERT INTO users(id,auth_id,name,username,email,password_hash) VALUES(?,?,?,?,?,?)',
+        )
+        .bind(id, input.authId, input.name, input.username, input.email, input.passwordHash),
+      db.prepare('INSERT OR IGNORE INTO settings(user_id) VALUES(?)').bind(id),
+    ]);
+  } catch (err) {
+    // Unique-index race: map to a friendly conflict.
+    const message = err instanceof Error ? err.message : '';
+    if (/UNIQUE|constraint/i.test(message)) {
+      if (/username/i.test(message)) throw new Error('USERNAME_TAKEN');
+      throw new Error('EMAIL_TAKEN');
+    }
+    throw err;
+  }
+
+  return { userId: id, authUserId: input.authId, email: input.email, displayName: input.name };
 }
 export async function authorized(db: D1Database, id: string, u: Actor) {
   return db

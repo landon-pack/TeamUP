@@ -1,45 +1,64 @@
 /**
- * Browser-side helpers for email + name session auth.
+ * Browser-side helpers for TeamUP account auth.
  *
- * Both /signup and /signin call the same API (`POST /api/auth/signin`).
- * There is no password — a valid name + email creates or resumes a session.
+ * Sign up  → POST /api/auth/signup
+ * Sign in  → POST /api/auth/signin
  */
 
 export const DEFAULT_AFTER_AUTH_PATH = '/workspace';
 
-type StartSessionInput = {
-  name: string;
-  email: string;
-  /** Where to send the user after success (usually /workspace). */
-  returnTo?: string;
-};
-
-type StartSessionResult = {
+type AuthResult = {
   returnTo: string;
 };
 
-/**
- * Creates a session cookie via the API, then returns where the browser should go next.
- * Throws an Error with a user-facing message on failure.
- */
-export async function startEmailSession({
-  name,
-  email,
-  returnTo = DEFAULT_AFTER_AUTH_PATH,
-}: StartSessionInput): Promise<StartSessionResult> {
-  const response = await fetch('/api/auth/signin', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, name, returnTo }),
-  });
-
+async function readAuthResponse(response: Response): Promise<AuthResult> {
   const data: { error?: string; returnTo?: string } = await response.json();
-
   if (!response.ok) {
     throw new Error(data.error || 'Unable to continue. Please try again.');
   }
-
   return { returnTo: data.returnTo || DEFAULT_AFTER_AUTH_PATH };
+}
+
+/** Create a new account and start a session. */
+export async function signUpAccount(input: {
+  name: string;
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  returnTo?: string;
+}): Promise<AuthResult> {
+  const response = await fetch('/api/auth/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: input.name,
+      username: input.username,
+      email: input.email,
+      password: input.password,
+      confirmPassword: input.confirmPassword,
+      returnTo: input.returnTo || DEFAULT_AFTER_AUTH_PATH,
+    }),
+  });
+  return readAuthResponse(response);
+}
+
+/** Sign in with email or username + password. */
+export async function signInAccount(input: {
+  login: string;
+  password: string;
+  returnTo?: string;
+}): Promise<AuthResult> {
+  const response = await fetch('/api/auth/signin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      login: input.login,
+      password: input.password,
+      returnTo: input.returnTo || DEFAULT_AFTER_AUTH_PATH,
+    }),
+  });
+  return readAuthResponse(response);
 }
 
 /** Read ?return_to= from the current URL, falling back to the workspace. */

@@ -1,26 +1,23 @@
 'use client';
 
 /**
- * Sign in — resume an existing TeamUP session.
+ * Sign in — email or username + password.
  *
- * This page already works (same API as Sign up). A teammate can polish the
- * layout/copy without changing the submit handler below.
- *
- * TODO(teammate): improve visual design / copy.
+ * TODO(teammate): polish visual design / copy.
  * Safe to edit: headings, labels, placeholders, classNames, surrounding markup.
- * Prefer keeping handleSubmit + startEmailSession as-is so auth keeps working.
+ * Prefer keeping handleSubmit + signInAccount as-is so auth keeps working.
  */
 
 import { FormEvent, useState } from 'react';
 import {
   DEFAULT_AFTER_AUTH_PATH,
   readReturnToParam,
-  startEmailSession,
+  signInAccount,
 } from '../../lib/auth-client';
 
 export default function SignInPage() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,9 +27,9 @@ export default function SignInPage() {
     setBusy(true);
 
     try {
-      const { returnTo } = await startEmailSession({
-        name,
-        email,
+      const { returnTo } = await signInAccount({
+        login,
+        password,
         returnTo: readReturnToParam(),
       });
       window.location.assign(returnTo || DEFAULT_AFTER_AUTH_PATH);
@@ -46,37 +43,37 @@ export default function SignInPage() {
     <main className='auth-page'>
       <div className='auth-card'>
         {/* TODO(teammate): restyle this card as you like */}
-        <p className='auth-brand'>
+        <a className='auth-brand' href='/'>
           teamup<span>.</span>
-        </p>
+        </a>
 
         <h1>Welcome back</h1>
-        <p className='auth-lede'>Sign in with the name and email you used before.</p>
+        <p className='auth-lede'>Sign in with your email or username and password.</p>
 
         <form className='auth-form' onSubmit={handleSubmit}>
           <label>
-            Full name
+            Email or username
             <input
               type='text'
-              name='name'
-              autoComplete='name'
+              name='login'
+              autoComplete='username'
               required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder='Alex Kim'
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
+              placeholder='you@school.edu or alexkim'
             />
           </label>
 
           <label>
-            Email
+            Password
             <input
-              type='email'
-              name='email'
-              autoComplete='email'
+              type='password'
+              name='password'
+              autoComplete='current-password'
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder='you@school.edu'
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder='Your password'
             />
           </label>
 

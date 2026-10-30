@@ -13,11 +13,19 @@ export const users = sqliteTable(
     id: text('id').primaryKey(),
     authId: text('auth_id'),
     name: text('name').notNull(),
+    /** Login handle — unique, separate from display name. */
+    username: text('username'),
     email: text('email').notNull(),
+    /** PBKDF2 hash blob from lib/password.ts; null for legacy passwordless rows. */
+    passwordHash: text('password_hash'),
     address: text('address'),
     phone: text('phone'),
   },
-  (t) => [uniqueIndex('users_email').on(t.email), uniqueIndex('users_auth').on(t.authId)],
+  (t) => [
+    uniqueIndex('users_email').on(t.email),
+    uniqueIndex('users_auth').on(t.authId),
+    uniqueIndex('users_username').on(t.username),
+  ],
 );
 export const groups = sqliteTable('groups', {
   id: text('id').primaryKey(),

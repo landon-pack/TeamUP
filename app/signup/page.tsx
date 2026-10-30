@@ -4,37 +4,45 @@
  * Sign up — create a TeamUP account.
  *
  * Flow:
- * 1. User enters name + email
- * 2. Browser POSTs to /api/auth/signin (same endpoint as Sign in)
- * 3. Server sets a session cookie
- * 4. Browser redirects to /workspace (or ?return_to=…)
- *
- * There is no password. Name + email is enough to open a session.
- * Landing “Sign up” points here; this form is intentionally complete.
+ * 1. User enters name, username, email, password (twice)
+ * 2. Browser POSTs to /api/auth/signup
+ * 3. Server rejects duplicate email/username, otherwise stores a password hash
+ * 4. Server sets a session cookie; browser redirects to /workspace
  */
 
 import { FormEvent, useState } from 'react';
 import {
   DEFAULT_AFTER_AUTH_PATH,
   readReturnToParam,
-  startEmailSession,
+  signUpAccount,
 } from '../../lib/auth-client';
 
 export default function SignUpPage() {
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
-    setBusy(true);
 
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setBusy(true);
     try {
-      const { returnTo } = await startEmailSession({
+      const { returnTo } = await signUpAccount({
         name,
+        username,
         email,
+        password,
+        confirmPassword,
         returnTo: readReturnToParam(),
       });
       window.location.assign(returnTo || DEFAULT_AFTER_AUTH_PATH);
@@ -47,12 +55,12 @@ export default function SignUpPage() {
   return (
     <main className='auth-page'>
       <div className='auth-card'>
-        <p className='auth-brand'>
+        <a className='auth-brand' href='/'>
           teamup<span>.</span>
-        </p>
+        </a>
 
         <h1>Create your account</h1>
-        <p className='auth-lede'>Start coordinating your group in a couple of steps.</p>
+        <p className='auth-lede'>Pick a username, email, and password to get started.</p>
 
         <form className='auth-form' onSubmit={handleSubmit}>
           <label>
@@ -62,9 +70,28 @@ export default function SignUpPage() {
               name='name'
               autoComplete='name'
               required
+              minLength={2}
+              maxLength={80}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder='Alex Kim'
+            />
+          </label>
+
+          <label>
+            Username
+            <input
+              type='text'
+              name='username'
+              autoComplete='username'
+              required
+              minLength={3}
+              maxLength={24}
+              pattern='[a-zA-Z0-9_]+'
+              title='3–24 characters: letters, numbers, or underscores'
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              placeholder='alexkim'
             />
           </label>
 
@@ -78,6 +105,34 @@ export default function SignUpPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder='you@school.edu'
+            />
+          </label>
+
+          <label>
+            Password
+            <input
+              type='password'
+              name='password'
+              autoComplete='new-password'
+              required
+              minLength={8}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder='At least 8 characters'
+            />
+          </label>
+
+          <label>
+            Confirm password
+            <input
+              type='password'
+              name='confirmPassword'
+              autoComplete='new-password'
+              required
+              minLength={8}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder='Re-enter password'
             />
           </label>
 
