@@ -4,7 +4,7 @@
  * Who edits what:
  * - Hero CTAs / Sign up + Sign in wiring → already set up
  * - About copy → app/landing/about.tsx
- * - Images → app/landing/visual.tsx (+ files in public/landing/)
+ * - Images → app/landing/visual.tsx (+ files in public/landing/; shown beside About)
  * - Sign in page look → app/signin/page.tsx
  *
  * Site map:
@@ -19,7 +19,6 @@ import { LandingAbout } from './landing/about';
 import { LandingFooter } from './landing/footer';
 import { LandingGettingStarted } from './landing/getting-started';
 import { LandingHero } from './landing/hero';
-import { LandingVisual } from './landing/visual';
 
 export default function Landing() {
   return (
@@ -27,7 +26,6 @@ export default function Landing() {
       <LandingHero />
       <LandingAbout />
       <LandingGettingStarted />
-      <LandingVisual />
       <LandingFooter />
     </main>
   );
