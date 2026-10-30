@@ -4,7 +4,7 @@
  * Sign up — create a TeamUP account.
  *
  * Flow:
- * 1. User enters name, username, email, password (twice)
+ * 1. User enters first name, last name, username, email, password (twice)
  * 2. Browser POSTs to /api/auth/signup
  * 3. Server rejects duplicate email/username, otherwise stores a password hash
  * 4. Server sets a session cookie; browser redirects to /workspace
@@ -18,7 +18,8 @@ import {
 } from '../../lib/auth-client';
 
 export default function SignUpPage() {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,7 +39,8 @@ export default function SignUpPage() {
     setBusy(true);
     try {
       const { returnTo } = await signUpAccount({
-        name,
+        firstName,
+        lastName,
         username,
         email,
         password,
@@ -63,20 +65,35 @@ export default function SignUpPage() {
         <p className='auth-lede'>Pick a username, email, and password to get started.</p>
 
         <form className='auth-form' onSubmit={handleSubmit}>
-          <label>
-            Full name
-            <input
-              type='text'
-              name='name'
-              autoComplete='name'
-              required
-              minLength={2}
-              maxLength={80}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder='Alex Kim'
-            />
-          </label>
+          <div className='auth-form-row'>
+            <label>
+              First name
+              <input
+                type='text'
+                name='firstName'
+                autoComplete='given-name'
+                required
+                maxLength={40}
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder='Alex'
+              />
+            </label>
+
+            <label>
+              Last name
+              <input
+                type='text'
+                name='lastName'
+                autoComplete='family-name'
+                required
+                maxLength={40}
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder='Kim'
+              />
+            </label>
+          </div>
 
           <label>
             Username

@@ -25,6 +25,8 @@ export type PasswordUserRow = {
   id: string;
   auth_id: string | null;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   username: string | null;
   email: string;
   password_hash: string | null;
@@ -38,7 +40,7 @@ export async function findUserByLogin(
   if (login.email) {
     return db
       .prepare(
-        'SELECT id, auth_id, name, username, email, password_hash FROM users WHERE email=? LIMIT 1',
+        'SELECT id, auth_id, name, first_name, last_name, username, email, password_hash FROM users WHERE email=? LIMIT 1',
       )
       .bind(login.email)
       .first<PasswordUserRow>();
@@ -46,7 +48,7 @@ export async function findUserByLogin(
   if (login.username) {
     return db
       .prepare(
-        'SELECT id, auth_id, name, username, email, password_hash FROM users WHERE username=? LIMIT 1',
+        'SELECT id, auth_id, name, first_name, last_name, username, email, password_hash FROM users WHERE username=? LIMIT 1',
       )
       .bind(login.username)
       .first<PasswordUserRow>();
@@ -60,6 +62,8 @@ export async function createPasswordUser(
   input: {
     authId: string;
     email: string;
+    firstName: string;
+    lastName: string;
     name: string;
     username: string;
     passwordHash: string;
@@ -83,9 +87,18 @@ export async function createPasswordUser(
     await db.batch([
       db
         .prepare(
-          'INSERT INTO users(id,auth_id,name,username,email,password_hash) VALUES(?,?,?,?,?,?)',
+          'INSERT INTO users(id,auth_id,name,first_name,last_name,username,email,password_hash) VALUES(?,?,?,?,?,?,?,?)',
         )
-        .bind(id, input.authId, input.name, input.username, input.email, input.passwordHash),
+        .bind(
+          id,
+          input.authId,
+          input.name,
+          input.firstName,
+          input.lastName,
+          input.username,
+          input.email,
+          input.passwordHash,
+        ),
       db.prepare('INSERT OR IGNORE INTO settings(user_id) VALUES(?)').bind(id),
     ]);
   } catch (err) {

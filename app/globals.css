@@ -1369,6 +1369,16 @@ h3 {
   flex-direction: column;
   gap: 14px;
 }
+.auth-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 420px) {
+  .auth-form-row {
+    grid-template-columns: 1fr;
+  }
+}
 .auth-form label {
   display: flex;
   flex-direction: column;

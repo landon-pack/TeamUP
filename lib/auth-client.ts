@@ -21,7 +21,8 @@ async function readAuthResponse(response: Response): Promise<AuthResult> {
 
 /** Create a new account and start a session. */
 export async function signUpAccount(input: {
-  name: string;
+  firstName: string;
+  lastName: string;
   username: string;
   email: string;
   password: string;
@@ -32,7 +33,8 @@ export async function signUpAccount(input: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      name: input.name,
+      firstName: input.firstName,
+      lastName: input.lastName,
       username: input.username,
       email: input.email,
       password: input.password,

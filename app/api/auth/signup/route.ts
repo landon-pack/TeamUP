@@ -1,7 +1,7 @@
 /**
  * POST /api/auth/signup
  *
- * Creates a new account (name, username, email, password).
+ * Creates a new account (first/last name, username, email, password).
  * Rejects if email or username is already taken.
  * Sets the session cookie on success.
  */
@@ -21,6 +21,8 @@ export async function POST(req: Request) {
     sameOrigin(req);
 
     const body = (await req.json()) as {
+      firstName?: string;
+      lastName?: string;
       name?: string;
       username?: string;
       email?: string;
@@ -41,6 +43,8 @@ export async function POST(req: Request) {
       await createPasswordUser(runtime().DB, {
         authId,
         email: validated.email,
+        firstName: validated.firstName,
+        lastName: validated.lastName,
         name: validated.name,
         username: validated.username,
         passwordHash,

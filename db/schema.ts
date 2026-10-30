@@ -12,7 +12,10 @@ export const users = sqliteTable(
   {
     id: text('id').primaryKey(),
     authId: text('auth_id'),
+    /** Full display name — kept in sync as "first last" for existing UI. */
     name: text('name').notNull(),
+    firstName: text('first_name'),
+    lastName: text('last_name'),
     /** Login handle — unique, separate from display name. */
     username: text('username'),
     email: text('email').notNull(),

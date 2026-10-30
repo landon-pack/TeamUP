@@ -55,7 +55,7 @@ npm run dev
 
 Open the URL it prints (usually **http://localhost:5173/**).
 
-Create an account at **/signup** (name, username, email, password). Sign in at **/signin** with email or username + password. Use the same email teammates invite you with.
+Create an account at **/signup** (first name, last name, username, email, password). Sign in at **/signin** with email or username + password. Use the same email teammates invite you with.
 
 If you see a Vite error about a missing file in `node_modules/.vite`, stop the server (`Ctrl+C`) and run:
 

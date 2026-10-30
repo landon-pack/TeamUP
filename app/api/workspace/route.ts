@@ -63,9 +63,13 @@ export async function POST(req: Request) {
     if (body.action === 'profile') {
       const name = String(body.name || '')
           .trim()
+          .replace(/\s+/g, ' ')
           .slice(0, 80),
         zone = String(body.timeZone || 'UTC');
       if (!name) return Response.json({ error: 'Enter your name.' }, { status: 400 });
+      const nameParts = name.split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ');
       try {
         new Intl.DateTimeFormat('en', { timeZone: zone });
       } catch {
@@ -75,8 +79,12 @@ export async function POST(req: Request) {
         );
       }
       await DB.batch([
-        DB.prepare('UPDATE users SET name=?,address=?,phone=? WHERE id=?').bind(
+        DB.prepare(
+          'UPDATE users SET name=?,first_name=?,last_name=?,address=?,phone=? WHERE id=?',
+        ).bind(
           name,
+          firstName,
+          lastName,
           String(body.address || '').slice(0, 300),
           String(body.phone || '').slice(0, 40),
           u.userId,

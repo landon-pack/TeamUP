@@ -114,8 +114,20 @@ export function validatePassword(raw: unknown): AuthError | AuthOk<{ password: s
   return { ok: true, password };
 }
 
+function cleanNamePart(raw: unknown, max = 40) {
+  return typeof raw === 'string' ? raw.trim().replace(/\s+/g, ' ').slice(0, max) : '';
+}
+
+/** Combine first + last into the display name used across the app. */
+export function displayNameFromParts(firstName: string, lastName: string) {
+  return `${firstName} ${lastName}`.trim().replace(/\s+/g, ' ');
+}
+
 /** Validate fields for creating a new account. */
 export function validateSignUp(input: {
+  firstName?: unknown;
+  lastName?: unknown;
+  /** @deprecated Prefer firstName + lastName. Still accepted as a fallback. */
   name?: unknown;
   username?: unknown;
   email?: unknown;
@@ -123,15 +135,35 @@ export function validateSignUp(input: {
   confirmPassword?: unknown;
 }):
   | AuthError
-  | AuthOk<{ name: string; username: string; email: string; password: string }> {
+  | AuthOk<{
+      firstName: string;
+      lastName: string;
+      name: string;
+      username: string;
+      email: string;
+      password: string;
+    }> {
   const email = typeof input.email === 'string' ? normalizeEmail(input.email) : '';
-  const name =
-    typeof input.name === 'string'
-      ? input.name.trim().replace(/\s+/g, ' ').slice(0, 80)
-      : '';
+  let firstName = cleanNamePart(input.firstName);
+  let lastName = cleanNamePart(input.lastName);
 
-  if (!name || name.length < 2) {
-    return { ok: false, error: 'Enter your name (at least 2 characters).' };
+  // Back-compat: if only a single "name" was sent, split on the first space.
+  if ((!firstName || !lastName) && typeof input.name === 'string') {
+    const parts = input.name.trim().replace(/\s+/g, ' ').split(' ');
+    if (!firstName) firstName = parts[0] || '';
+    if (!lastName) lastName = parts.slice(1).join(' ');
+  }
+
+  if (!firstName || firstName.length < 1) {
+    return { ok: false, error: 'Enter your first name.' };
+  }
+  if (!lastName || lastName.length < 1) {
+    return { ok: false, error: 'Enter your last name.' };
+  }
+
+  const name = displayNameFromParts(firstName, lastName);
+  if (name.length > 80) {
+    return { ok: false, error: 'Name is too long.' };
   }
 
   const usernameResult = validateUsername(input.username);
@@ -151,6 +183,8 @@ export function validateSignUp(input: {
 
   return {
     ok: true,
+    firstName,
+    lastName,
     name,
     username: usernameResult.username,
     email,
