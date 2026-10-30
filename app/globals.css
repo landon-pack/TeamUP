@@ -1268,6 +1268,59 @@ h3 {
   color: #667085;
   margin: 0;
 }
+.landing-start {
+  padding: 40px clamp(20px, 5vw, 64px) 72px;
+}
+.landing-start-heading {
+  max-width: 760px;
+  margin: 0 auto 30px;
+}
+.landing-start h2 {
+  font-size: clamp(24px, 3vw, 34px);
+  letter-spacing: -0.6px;
+  margin: 0 0 12px;
+}
+.landing-start-intro,
+.landing-start-steps p {
+  color: #667085;
+  font-size: 16px;
+  line-height: 1.7;
+}
+.landing-start-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+.landing-start-steps li {
+  padding: 24px;
+  border: 1px solid #e0e3ee;
+  border-radius: 14px;
+  background: #ffffffc9;
+}
+.landing-start-number {
+  display: inline-block;
+  margin-bottom: 18px;
+  color: #6962c9;
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 1px;
+}
+.landing-start-steps h3 {
+  margin: 0 0 9px;
+  font-size: 18px;
+  letter-spacing: -0.2px;
+}
+.landing-start-cta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 26px;
+}
 .landing-visual {
   padding: 20px clamp(20px, 5vw, 64px) 80px;
 }
@@ -1317,6 +1370,11 @@ h3 {
 .landing-footer a {
   color: #5b54d9;
   font-weight: 550;
+}
+@media (max-width: 760px) {
+  .landing-start-steps {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* =============================================================================

@@ -17,6 +17,7 @@
 
 import { LandingAbout } from './landing/about';
 import { LandingFooter } from './landing/footer';
+import { LandingGettingStarted } from './landing/getting-started';
 import { LandingHero } from './landing/hero';
 import { LandingVisual } from './landing/visual';
 
@@ -25,6 +26,7 @@ export default function Landing() {
     <main className='landing-page'>
       <LandingHero />
       <LandingAbout />
+      <LandingGettingStarted />
       <LandingVisual />
       <LandingFooter />
     </main>
