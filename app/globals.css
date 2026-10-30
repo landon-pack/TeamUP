@@ -162,6 +162,19 @@ a:focus-visible {
   background: #ffe9d8;
   color: #a97038;
 }
+.profile-avatar-button {
+  padding: 0;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.profile-avatar-button:hover {
+  box-shadow: 0 0 0 3px #eeecfa;
+  transform: translateY(-1px);
+}
+.profile-avatar-button:focus-visible {
+  outline: 2px solid #6352bb;
+  outline-offset: 3px;
+}
 .content {
   max-width: 1480px;
   margin: auto;
@@ -1226,10 +1239,71 @@ h3 {
   margin: 0 0 10px;
 }
 .landing-hero {
+  position: relative;
   min-height: min(92vh, 860px);
   display: flex;
   align-items: center;
   padding: clamp(32px, 6vw, 72px) clamp(20px, 5vw, 64px);
+}
+.landing-nav {
+  position: absolute;
+  top: clamp(20px, 4vw, 40px);
+  right: clamp(20px, 5vw, 64px);
+}
+.landing-nav a,
+.landing-page .landing-cta-row .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 112px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+.landing-nav a {
+  border: 1px solid #dedbed;
+  color: #4c456e;
+  background: rgb(255 255 255 / 72%);
+}
+.landing-nav a:hover {
+  color: #5149c7;
+  border-color: #bdb7ec;
+  background: #fff;
+}
+.landing-page .landing-cta-row .btn.subtle {
+  padding: 0 14px;
+  border: 1px solid #e0e4ed;
+  background: #fff;
+  color: #5149c7;
+}
+.landing-page .landing-cta-row .btn:hover {
+  border-color: #bdb7ec;
+  box-shadow: 0 3px 10px #5149c71a;
+  transform: translateY(-1px);
+}
+.landing-page .landing-cta-row .btn.primary:hover {
+  background: #4f48c7;
+  border-color: #4f48c7;
+}
+.landing-nav a:focus-visible,
+.landing-page .landing-cta-row .btn:focus-visible {
+  outline: 2px solid #6352bb;
+  outline-offset: 3px;
+}
+.landing-about {
+  scroll-margin-top: 24px;
 }
 .landing-hero-copy {
   max-width: 640px;
@@ -1279,13 +1353,22 @@ h3 {
   overflow: hidden;
   border: 1px solid #e0e3ee;
   background: #fff;
-  min-height: 280px;
 }
 .landing-visual-frame img {
   display: block;
   width: 100%;
-  height: auto;
+  aspect-ratio: 3 / 2;
   object-fit: cover;
+}
+.landing-visual-frame figcaption {
+  padding: 10px 14px;
+  color: #7a8497;
+  font-size: 12px;
+}
+.landing-visual-frame figcaption a {
+  color: #5b54d9;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .landing-visual-placeholder {
   min-height: 320px;
