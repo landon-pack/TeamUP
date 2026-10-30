@@ -6,10 +6,7 @@ export function LandingFooter() {
     <footer className='landing-footer'>
       <a href={LANDING_ROUTES.signUp}>Create an account</a>
       <span aria-hidden='true'>·</span>
-      {/* TODO(teammate): link to LANDING_ROUTES.signIn when wiring sign-in */}
-      <span className='landing-footer-muted' title='Sign in link coming soon'>
-        Sign in
-      </span>
+      <a href={LANDING_ROUTES.signIn}>Sign in</a>
       <span aria-hidden='true'>·</span>
       <a href={LANDING_ROUTES.demo}>Demo</a>
     </footer>

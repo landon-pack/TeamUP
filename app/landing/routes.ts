@@ -5,10 +5,7 @@
 export const LANDING_ROUTES = {
   /** Create an account (working). */
   signUp: '/signup',
-  /**
-   * Sign-in destination for when a teammate wires the landing CTA.
-   * Not linked from the landing page yet — see hero/footer TODOs.
-   */
+  /** Existing account — opens /signin, then /workspace after success. */
   signIn: '/signin?return_to=%2Fworkspace',
   /** Local/demo workspace with no account required. */
   demo: '/demo',

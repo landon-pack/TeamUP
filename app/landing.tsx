@@ -2,8 +2,7 @@
  * Marketing landing page (route: `/`).
  *
  * Who edits what:
- * - Hero CTAs / Sign up wiring → already set up
- * - Sign in button → teammate wires to /signin (see hero/footer TODOs)
+ * - Hero CTAs / Sign up + Sign in wiring → already set up
  * - About copy → app/landing/about.tsx
  * - Images → app/landing/visual.tsx (+ files in public/landing/)
  * - Sign in page look → app/signin/page.tsx
@@ -11,7 +10,7 @@
  * Site map:
  *   /           → this landing page
  *   /signup     → create account (working)
- *   /signin     → sign in form (not linked from landing yet)
+ *   /signin     → sign in (working)
  *   /workspace  → main app after auth
  *   /demo       → try the app without an account
  */
