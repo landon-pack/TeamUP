@@ -37,7 +37,7 @@ export function LandingHero() {
       </div>
 
       <a className='landing-scroll-cue' href='#about' aria-label='Scroll to About Us'>
-        <span>More below</span>
+        <span>About us</span>
         <ChevronDown size={22} aria-hidden='true' />
       </a>
     </section>

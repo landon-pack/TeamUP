@@ -1404,14 +1404,23 @@ h3 {
   outline-offset: 3px;
 }
 .landing-about {
+  position: relative;
   scroll-margin-top: 24px;
+  min-height: min(92vh, 860px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 72px clamp(20px, 5vw, 64px);
+  padding-bottom: clamp(72px, 10vw, 96px);
+  width: 100%;
+  box-sizing: border-box;
+}
+.landing-about-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: clamp(48px, 10vw, 120px);
-  padding: 72px clamp(20px, 5vw, 64px) 48px;
   width: 100%;
-  box-sizing: border-box;
 }
 .landing-hero-copy {
   max-width: 640px;
@@ -1450,6 +1459,7 @@ h3 {
   margin: 0;
 }
 .landing-start {
+  scroll-margin-top: 24px;
   padding: 40px clamp(20px, 5vw, 64px) 72px;
 }
 .landing-start-heading {
@@ -1560,9 +1570,12 @@ h3 {
 }
 @media (max-width: 760px) {
   .landing-about {
+    min-height: auto;
+    padding-bottom: 72px;
+  }
+  .landing-about-row {
     flex-direction: column;
     align-items: stretch;
-    padding-bottom: 56px;
   }
   .landing-about .landing-visual-frame {
     width: 100%;
