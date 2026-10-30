@@ -657,9 +657,13 @@ export default function Workspace({ demoMode = false }: { demoMode?: boolean }) 
           <div className='flex gap-3 items-center'>
             <SidebarTrigger />
             <div className='crumb'>
-              Workspace
+              <button type='button' onClick={() => setView('Overview')}>
+                Workspace
+              </button>
               <ChevronRight size={13} />
-              <strong>{view}</strong>
+              <button type='button' aria-current='page' onClick={() => setView(view)}>
+                {view}
+              </button>
             </div>
             <span className='mobile-title'>teamup.</span>
           </div>

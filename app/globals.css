@@ -131,7 +131,15 @@ a:focus-visible {
   gap: 12px;
   align-items: center;
 }
-.crumb strong {
+.crumb button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.crumb button[aria-current='page'] {
   color: #3e485d;
   font-weight: 500;
 }
