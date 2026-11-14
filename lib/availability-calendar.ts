@@ -37,6 +37,17 @@ export function availabilityHeat(count: number) {
 
 /** First colors given to people on a project. Later members get further distinct hues. */
 export const AVAILABILITY_MEMBER_COLORS = [
+  '#4b3fae',
+  '#6757d2',
+  '#8575dd',
+  '#a495ea',
+  '#6a58a8',
+  '#9885c5',
+  '#7565b8',
+  '#b5a6e8',
+];
+
+const LEGACY_AVAILABILITY_MEMBER_COLORS = [
   '#0f766e',
   '#c2410c',
   '#be185d',
@@ -79,7 +90,7 @@ function hslToHex(hue: number, saturation: number, lightness: number) {
 /** A distinct color for member index. Indexes past the palette do not reuse earlier colors. */
 export function availabilityMemberColor(index: number) {
   if (index < AVAILABILITY_MEMBER_COLORS.length) return AVAILABILITY_MEMBER_COLORS[index];
-  return hslToHex((index * 47) % 360, 62, 34);
+  return hslToHex(248 + ((index * 19) % 48), 54 + ((index % 3) * 5), 38 + ((index % 4) * 8));
 }
 
 export function nextMemberColor(used: Iterable<string | null | undefined>) {
@@ -96,6 +107,14 @@ export function assignMemberColors<T extends { id: string; color?: string | null
   const used = new Set<string>();
   return members.map((member) => {
     const current = canonicalMemberColor(member.color);
+    const legacyIndex = LEGACY_AVAILABILITY_MEMBER_COLORS.indexOf(current);
+    if (legacyIndex >= 0) {
+      const refreshed = availabilityMemberColor(legacyIndex);
+      if (!used.has(refreshed)) {
+        used.add(refreshed);
+        return { ...member, color: refreshed };
+      }
+    }
     if (current && !used.has(current)) {
       used.add(current);
       return current === member.color ? member : { ...member, color: current };
