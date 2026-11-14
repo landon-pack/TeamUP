@@ -2270,6 +2270,8 @@ export default function Workspace({
     }
     if (ok) {
       setModal('');
+      if (tour === 0 && modal === 'project' && !draft.id) setTour(1);
+      if (tour === 1 && modal === 'task' && !draft.id) setTour(2);
       toast.success('Saved to your workspace.');
     }
   }
@@ -2280,6 +2282,7 @@ export default function Workspace({
           <Checkbox
             aria-label={`Mark ${t.title} ${t.status === 'done' ? 'incomplete' : 'complete'}`}
             checked={t.status === 'done'}
+            data-tutorial-target={t.id === project.tasks.find((task) => task.status !== 'done' && canEditTask(task))?.id ? 'complete-task' : undefined}
             disabled={busy || !canEditTask(t)}
             onCheckedChange={() => setStatus(t)}
           />
@@ -2412,6 +2415,7 @@ export default function Workspace({
               <SidebarMenuItem key={name}>
                 <SidebarMenuButton
                   className='h-10 px-3 text-[14px]'
+                  data-tutorial-nav={name}
                   isActive={view === name}
                   onClick={() => {
                     setView(name);
@@ -2502,7 +2506,7 @@ export default function Workspace({
           ) : (
             <p className='project-option muted'>No projects yet</p>
           )}
-          <button className='project-option' onClick={() => open('project', { due: future(14) })}>
+          <button className='project-option' data-tutorial-target='create-project' onClick={() => open('project', { due: future(14) })}>
             ＋ &nbsp; New project
           </button>
         </SidebarContent>
@@ -2536,7 +2540,7 @@ export default function Workspace({
         <header className='topbar'>
           <div className='flex gap-3 items-center'>
             {/* Sidebar toggle for mobile, tablet, and desktop layouts. */}
-            <SidebarTrigger className='mobile-sidebar-trigger' />
+            <SidebarTrigger className='mobile-sidebar-trigger' data-tutorial-menu-trigger />
             <span className='mobile-title'>TeamUP.</span>
           </div>
           <div className='top-actions'>
@@ -2550,6 +2554,7 @@ export default function Workspace({
             <button
               type='button'
               className='page-help-button'
+              data-tutorial-target='help-button'
               aria-label={`Help for ${view}`}
               title={`Help for ${view}`}
               onClick={() => setPageHelpOpen(true)}
@@ -2753,6 +2758,7 @@ export default function Workspace({
               project={project}
               view={view}
               filter={filter}
+              modal={modal}
               onClose={() => {
                 setTour(null);
                 void markTutorialSeen();
@@ -2766,26 +2772,10 @@ export default function Workspace({
                   toast.success('You’re ready to go.');
                 }
               }}
-              onAction={() => {
-                if (tour === 0) open('project', { due: future(14) });
-                if (tour === 1) {
-                  if (requireProject()) open('task', { due: future(1), status: 'todo', assignee: canManageAllTasks ? '' : user?.id });
-                }
-                if (tour === 2) {
-                  setView('My tasks');
-                  setFilter('active');
-                }
-                if (tour === 3) {
-                  setView('Overview');
-                  setFilter('active');
-                }
-                if (tour === 4) setView('Team');
-              }}
             />
           )}
           <div
             className={`page-heading${view === 'Overview' ? ' overview-page-heading' : ''}`}
-            data-tutorial-step='0'
           >
             <div>
               <h1>
@@ -2812,7 +2802,7 @@ export default function Workspace({
               view !== 'Invites' && (
               <button
                 className='btn primary'
-                data-tutorial-step='1'
+                data-tutorial-target={view === 'My tasks' ? 'add-task' : undefined}
                 onClick={() => {
                   if (view === 'AI planning') {
                     if (requireProject()) {
@@ -2985,7 +2975,7 @@ export default function Workspace({
                     type='button'
                     className='stat stat-link'
                     key={label}
-                    data-tutorial-step={target === 'done' ? '3' : undefined}
+                    data-tutorial-target={target === 'done' ? 'completed-card' : undefined}
                     aria-label={`View ${label.toLowerCase()} (${n})`}
                     onClick={() => {
                       if (target === 'upcoming') {
@@ -2994,6 +2984,7 @@ export default function Workspace({
                       } else {
                         setFilter(target);
                         setView('My tasks');
+                        if (tour === 3 && target === 'done') setTour(4);
                       }
                     }}
                   >
@@ -3214,7 +3205,7 @@ export default function Workspace({
           )}
           {!isDemo && view === 'My tasks' && (
             <>
-              <div className='toolbar' data-tutorial-step='2'>
+              <div className='toolbar'>
                 <Tabs value={filter} onValueChange={setFilter}>
                   <TabsList className='bg-[#dbd9fc] task-filter-tabs'>
                     <TabsTrigger value='active'>Active tasks</TabsTrigger>
@@ -3743,7 +3734,11 @@ export default function Workspace({
                       type='button'
                       className='member-row member-row-button'
                       key={m.id}
-                      onClick={() => open('teammate', { ...m, name: memberLabel(m) })}
+                      data-tutorial-target={project.members[0]?.id === m.id ? 'team-member' : undefined}
+                      onClick={() => {
+                        open('teammate', { ...m, name: memberLabel(m) });
+                        if (tour === 4) setTour(5);
+                      }}
                     >
                       <PersonAvatar
                         name={memberLabel(m)}
@@ -3864,6 +3859,7 @@ export default function Workspace({
       </Dialog>
       <Dialog
         open={!!modal}
+        modal={tour === null}
         onOpenChange={(v) => {
           if (v || busy) return;
           if (modal === 'planner' && plan && planFromCreateId) {
@@ -3879,6 +3875,16 @@ export default function Workspace({
           className={`max-h-[88vh] overflow-x-hidden overflow-y-auto ${
             modal === 'planner' && plan ? 'sm:max-w-[640px]' : 'sm:max-w-[520px]'
           }`}
+          onPointerDownOutside={(event) => {
+            const target = event.target;
+            if (
+              tour !== null &&
+              target instanceof Element &&
+              target.closest('.tutorial-card, .tutorial-desktop-chip, .tutorial-mobile-chip')
+            ) {
+              event.preventDefault();
+            }
+          }}
         >
           <DialogHeader>
             <DialogTitle>
@@ -3943,7 +3949,11 @@ export default function Workspace({
             'brief',
             'rename-file',
           ].includes(modal) && (
-            <form className='form' onSubmit={submit}>
+            <form
+              className='form'
+              data-tutorial-form={modal === 'project' || modal === 'task' ? modal : undefined}
+              onSubmit={submit}
+            >
               {['project', 'member', 'profile', 'rename-file'].includes(modal) && (
                 <label>
                   {modal === 'project'
@@ -4434,7 +4444,12 @@ export default function Workspace({
                   Sign in
                 </a>
               )}
-              <button disabled={busy || !user || (modal === 'project' && draft.id && !isOwner) || (modal === 'milestone' && !isOwner)} className='btn primary' type='submit'>
+              <button
+                data-tutorial-target={modal === 'project' ? 'create-project-save' : modal === 'task' ? 'add-task-save' : undefined}
+                disabled={busy || !user || (modal === 'project' && draft.id && !isOwner) || (modal === 'milestone' && !isOwner)}
+                className='btn primary'
+                type='submit'
+              >
                 {busy
                   ? modal === 'member'
                     ? 'Sending…'

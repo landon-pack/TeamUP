@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Project } from '@/lib/model';
 
 const MOBILE_QUERY = '(max-width: 760px)';
@@ -16,12 +17,12 @@ function useIsMobile() {
   return mobile;
 }
 
-function focusTutorialStep(step: number) {
-  const target = document.querySelector(`[data-tutorial-step="${step}"]`);
+function focusTutorialStep(selector: string) {
+  document.querySelectorAll('.tutorial-focus').forEach((node) => node.classList.remove('tutorial-focus'));
+  const target = document.querySelector(selector);
   if (!(target instanceof HTMLElement)) return;
   target.scrollIntoView({ behavior: 'smooth', block: 'center' });
   target.classList.add('tutorial-focus');
-  window.setTimeout(() => target.classList.remove('tutorial-focus'), 1600);
 }
 
 export default function Tutorial({
@@ -29,7 +30,7 @@ export default function Tutorial({
   project,
   view,
   filter,
-  onAction,
+  modal,
   onNext,
   onBack,
   onClose,
@@ -38,12 +39,13 @@ export default function Tutorial({
   project: Project;
   view: string;
   filter: string;
-  onAction: () => void;
+  modal: string;
   onNext: () => void;
   onBack: () => void;
   onClose: () => void;
 }) {
   const mobile = useIsMobile();
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const cardRef = useRef<HTMLElement>(null);
   const dragRef = useRef<{
     pointerId: number;
@@ -54,53 +56,111 @@ export default function Tutorial({
   const [dragging, setDragging] = useState(false);
   const [mobilePhase, setMobilePhase] = useState<'guide' | 'practice'>('guide');
   const [desktopHidden, setDesktopHidden] = useState(false);
+  const [navConfirmedFor, setNavConfirmedFor] = useState<number | null>(null);
+  const [mobileMenuOpenedFor, setMobileMenuOpenedFor] = useState<number | null>(null);
+  const [clickedTarget, setClickedTarget] = useState('');
+  const autoAdvancedFor = useRef<number | null>(null);
+  useEffect(() => setPortalHost(document.body), []);
+  const doneTaskCount = project.tasks.filter((task) => task.status === 'done').length;
+  const [baseline, setBaseline] = useState(() => ({
+    step,
+    projectId: project.id,
+    taskCount: project.tasks.length,
+    doneCount: doneTaskCount,
+  }));
+  const stepBaseline = baseline.step === step ? baseline : {
+    step,
+    projectId: project.id,
+    taskCount: project.tasks.length,
+    doneCount: doneTaskCount,
+  };
 
   const steps = [
-    [
-      'Create your workspace',
-      'Create a project with a name and deadline. Invite teammates once you’re ready.',
-      'Create a project with a name and deadline.',
-      'Create project',
-      !!project.id,
-    ],
-    [
-      'Add a task',
-      'Give your task a clear title, choose a due date, and save it. You can assign it to a teammate.',
-      'Add a task with a clear title and due date.',
-      'Add a task',
-      project.tasks.length > 0,
-    ],
-    [
-      'Complete a task',
-      'Check the box beside a task. It leaves the active list but stays in your completion history.',
-      'Open Active tasks and check one off.',
-      'Open active tasks',
-      project.tasks.some((t) => t.status === 'done'),
-    ],
-    [
-      'Explore your dashboard',
-      'Click the Completed card on Overview to open your completed tasks. All four summary cards are clickable.',
-      'On Overview, tap the Completed card.',
-      'Show Completed card',
-      view === 'My tasks' && filter === 'done',
-    ],
-    [
-      'Bring your team together',
-      'Open Team to see members and create invitations. Use a project’s three-dot menu to edit its details and reminders.',
-      'Open Team to manage members and invitations.',
-      'Open Team',
-      view === 'Team',
-    ],
-    [
-      'You’re ready',
-      'Your real work saves automatically when you submit changes. Replay anytime from your profile with Run Tutorial.',
-      'You’re set. Replay anytime from profile → Run Tutorial.',
-      '',
-      true,
-    ],
+    {
+      title: 'Create your workspace',
+      nav: 'Overview',
+      target: 'create-project',
+      modalTarget: 'create-project-save',
+      modalName: 'project',
+      modalText: 'Name your project and choose a deadline, then save it.',
+      ready: !!project.id && project.id !== stepBaseline.projectId,
+      actionText: 'Open your projects menu and choose “New project.”',
+    },
+    {
+      title: 'Add a task',
+      nav: 'My tasks',
+      target: 'add-task',
+      modalTarget: 'add-task-save',
+      modalName: 'task',
+      modalText: 'Give the task a title and due date, then save it.',
+      ready: project.id === stepBaseline.projectId && project.tasks.length > stepBaseline.taskCount,
+      actionText: 'Click “Add task” to open the task form.',
+    },
+    {
+      title: 'Complete a task',
+      nav: 'My tasks',
+      target: 'complete-task',
+      modalTarget: '',
+      modalName: '',
+      modalText: '',
+      ready: doneTaskCount > stepBaseline.doneCount,
+      actionText: 'Click the highlighted checkbox to complete a task.',
+    },
+    {
+      title: 'Explore your dashboard',
+      nav: 'Overview',
+      target: 'completed-card',
+      modalTarget: '',
+      modalName: '',
+      modalText: '',
+      ready: view === 'My tasks' && filter === 'done',
+      actionText: 'Click the Completed card to see finished work.',
+    },
+    {
+      title: 'Bring your team together',
+      nav: 'Team',
+      target: 'team-member',
+      modalTarget: '',
+      modalName: 'teammate',
+      modalText: '',
+      ready: modal === 'teammate',
+      actionText: 'Click a teammate to see their assigned work.',
+    },
+    {
+      title: 'You’re ready',
+      nav: '',
+      target: 'help-button',
+      modalTarget: '',
+      modalName: '',
+      modalText: '',
+      ready: true,
+      actionText: 'If you ever need help, click the question mark in the top-right corner.',
+    },
   ] as const;
-  const [title, description, mobileDescription, action, ready] = steps[step];
-  const body = mobile ? mobileDescription : description;
+  const current = steps[step];
+  const actionComplete =
+    current.ready &&
+    clickedTarget === (current.modalTarget || current.target);
+  const needsNavigation = !!current.nav && view !== current.nav && navConfirmedFor !== step;
+  const phase = mobile && needsNavigation && mobileMenuOpenedFor !== step
+    ? 'menu'
+    : needsNavigation
+    ? 'navigation'
+    : current.modalTarget && modal === current.modalName
+      ? 'modal'
+      : actionComplete
+        ? 'complete'
+        : 'action';
+  const body =
+    phase === 'menu'
+      ? `Open the hamburger menu, then choose “${current.nav}.” We’ll highlight that page next.`
+      : phase === 'navigation'
+      ? `Choose “${current.nav}” from the hamburger menu. We’ll point out the next control when you get there.`
+      : phase === 'modal'
+        ? current.modalText || 'Complete this form to continue.'
+        : phase === 'complete'
+          ? 'You’ve completed this step. Continue when you’re ready.'
+          : current.actionText;
 
   useEffect(() => {
     document.body.classList.add('tutorial-running');
@@ -112,15 +172,93 @@ export default function Tutorial({
   }, [mobile]);
 
   useEffect(() => {
+    if (baseline.step === step) return;
     setMobilePhase('guide');
     setDesktopHidden(false);
-    setPos(null);
-    const timer = window.setTimeout(() => focusTutorialStep(step), 120);
-    return () => window.clearTimeout(timer);
-  }, [step]);
+    setClickedTarget('');
+    autoAdvancedFor.current = null;
+    setBaseline({
+      step,
+      projectId: project.id,
+      taskCount: project.tasks.length,
+      doneCount: doneTaskCount,
+    });
+  }, [baseline.step, step, project.id, project.tasks.length, doneTaskCount]);
 
   useEffect(() => {
-    if (mobile) return;
+    if (!portalHost || pos || desktopHidden || mobilePhase === 'practice') return;
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    setPos({ x: rect.left, y: rect.top });
+  }, [portalHost, pos, desktopHidden, mobilePhase]);
+
+  useEffect(() => {
+    const selector = phase === 'navigation'
+      ? `[data-tutorial-nav="${current.nav}"]`
+      : phase === 'menu'
+        ? '[data-tutorial-menu-trigger]'
+      : phase === 'modal'
+        ? `[data-tutorial-target="${current.modalTarget}"]`
+        : phase === 'action' && current.target
+          ? `[data-tutorial-target="${current.target}"]`
+          : '';
+    const focusDelay = phase === 'navigation' && mobile ? 280 : 140;
+    const timer = selector ? window.setTimeout(() => focusTutorialStep(selector), focusDelay) : undefined;
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      document
+        .querySelectorAll('.tutorial-focus')
+        .forEach((node) => node.classList.remove('tutorial-focus'));
+    };
+  }, [step, phase, current.nav, current.target, current.modalTarget, mobile]);
+
+  useEffect(() => {
+    if (!mobile || !current.nav) return;
+    const trigger = document.querySelector('[data-tutorial-menu-trigger]');
+    if (!(trigger instanceof HTMLElement)) return;
+    const markMenuOpened = () => setMobileMenuOpenedFor(step);
+    trigger.addEventListener('click', markMenuOpened);
+    return () => trigger.removeEventListener('click', markMenuOpened);
+  }, [mobile, step, current.nav]);
+
+  useEffect(() => {
+    if (!actionComplete || !current.target || step === steps.length - 1) return;
+    if (current.modalTarget && modal === current.modalName) return;
+    if (autoAdvancedFor.current === step) return;
+    autoAdvancedFor.current = step;
+    onNext();
+  }, [actionComplete, current.modalName, current.modalTarget, current.target, modal, onNext, step, steps.length]);
+
+  useEffect(() => {
+    const targetName = phase === 'modal' ? current.modalTarget : phase === 'action' ? current.target : '';
+    if (!targetName) return;
+    const target = document.querySelector(`[data-tutorial-target="${targetName}"]`);
+    if (!(target instanceof HTMLElement)) return;
+    const recordClick = () => setClickedTarget(targetName);
+    target.addEventListener('click', recordClick);
+    return () => target.removeEventListener('click', recordClick);
+  }, [step, phase, current.target, current.modalTarget]);
+
+  useEffect(() => {
+    if (phase !== 'modal' || !current.modalName || !current.modalTarget) return;
+    const form = document.querySelector(`[data-tutorial-form="${current.modalName}"]`);
+    if (!(form instanceof HTMLFormElement)) return;
+    const recordSubmit = () => setClickedTarget(current.modalTarget);
+    form.addEventListener('submit', recordSubmit);
+    return () => form.removeEventListener('submit', recordSubmit);
+  }, [phase, current.modalName, current.modalTarget]);
+
+  useEffect(() => {
+    if (!current.nav) return;
+    const target = document.querySelector(`[data-tutorial-nav="${current.nav}"]`);
+    if (!(target instanceof HTMLElement)) return;
+    const confirmNavigation = () => setNavConfirmedFor(step);
+    target.addEventListener('click', confirmNavigation);
+    return () => target.removeEventListener('click', confirmNavigation);
+  }, [step, current.nav, mobileMenuOpenedFor]);
+
+  useEffect(() => {
     function keepInBounds() {
       const card = cardRef.current;
       if (!card || !pos) return;
@@ -139,8 +277,13 @@ export default function Tutorial({
   }, [mobile, pos]);
 
   function startDrag(event: React.PointerEvent<HTMLElement>) {
-    if (mobile || event.button !== 0) return;
-    if ((event.target as HTMLElement).closest('button, a, input')) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (mobile) {
+      if (!target.closest('.tutorial-drag-handle')) return;
+    } else if (target.closest('button, a, input, textarea, select')) {
+      return;
+    }
     const card = cardRef.current;
     if (!card) return;
     const rect = card.getBoundingClientRect();
@@ -155,7 +298,6 @@ export default function Tutorial({
   }
 
   function moveDrag(event: React.PointerEvent<HTMLElement>) {
-    if (mobile) return;
     const drag = dragRef.current;
     const card = cardRef.current;
     if (!drag || !card || drag.pointerId !== event.pointerId) return;
@@ -181,55 +323,55 @@ export default function Tutorial({
     }
   }
 
-  function handleAction() {
-    onAction();
-    window.setTimeout(() => focusTutorialStep(step), 180);
-    if (mobile) setMobilePhase('practice');
+  function goBack() {
+    setNavConfirmedFor(null);
+    setMobileMenuOpenedFor(null);
+    onBack();
   }
 
   if (mobile && mobilePhase === 'practice') {
-    return (
+    return portalHost ? createPortal((
       <div className='tutorial-mobile-chip' role='status'>
         <div>
           <strong>
             Step {step + 1}/{steps.length}
           </strong>
-          <span>{title}</span>
+          <span>{current.title}</span>
         </div>
         <div className='tutorial-mobile-chip-actions'>
           <button type='button' className='btn subtle' onClick={() => setMobilePhase('guide')}>
             Tip
           </button>
-          <button type='button' className='btn primary' disabled={!ready} onClick={onNext}>
-            {ready ? 'Next' : 'Working…'}
-          </button>
+          {step === steps.length - 1 ? (
+            <button type='button' className='btn primary' onClick={onNext}>Finish</button>
+          ) : <span className='tutorial-waiting'>Click the highlight</span>}
         </div>
       </div>
-    );
+    ), portalHost) : null;
   }
 
   if (!mobile && desktopHidden) {
-    return (
+    return portalHost ? createPortal((
       <div className='tutorial-desktop-chip' role='status'>
         <div>
           <strong>
             Step {step + 1}/{steps.length}
           </strong>
-          <span>{title}</span>
+          <span>{current.title}</span>
         </div>
         <div className='tutorial-desktop-chip-actions'>
           <button type='button' className='btn subtle' onClick={() => setDesktopHidden(false)}>
             Show tip
           </button>
-          <button type='button' className='btn primary' disabled={!ready} onClick={onNext}>
-            {ready ? 'Next' : 'Working…'}
-          </button>
+          {step === steps.length - 1 ? (
+            <button type='button' className='btn primary' onClick={onNext}>Finish</button>
+          ) : <span className='tutorial-waiting'>Click the highlight</span>}
         </div>
       </div>
-    );
+    ), portalHost) : null;
   }
 
-  return (
+  return portalHost ? createPortal((
     <>
       {!mobile && (
         <div className='tutorial-banner' role='status'>
@@ -244,6 +386,7 @@ export default function Tutorial({
         className={
           'tutorial-card' +
           (mobile ? ' mobile' : '') +
+          (phase === 'modal' ? ' modal-step' : '') +
           (dragging ? ' dragging' : '') +
           (pos ? ' positioned' : '')
         }
@@ -251,23 +394,24 @@ export default function Tutorial({
         role='dialog'
         aria-modal='false'
         tabIndex={-1}
-        style={
-          !mobile && pos
-            ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto', transform: 'none' }
-            : undefined
-        }
+        style={pos ? {
+          left: pos.x,
+          top: pos.y,
+          right: 'auto',
+          bottom: 'auto',
+          transform: 'none',
+          ...(mobile ? { width: 'calc(100vw - 24px)' } : {}),
+        } : undefined}
         onPointerDown={startDrag}
         onPointerMove={moveDrag}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-        {!mobile && (
-          <div className='tutorial-drag-handle' aria-hidden='true'>
-            <span />
-            <span />
-            <span />
-          </div>
-        )}
+        <div className='tutorial-drag-handle' title='Drag to move the tutorial panel' aria-label='Drag to move the tutorial panel'>
+          <span />
+          <span />
+          <span />
+        </div>
         <div className='tutorial-progress' aria-hidden='true'>
           {steps.map((_, index) => (
             <span
@@ -285,37 +429,30 @@ export default function Tutorial({
             {mobile ? 'Skip' : 'Skip tutorial'}
           </button>
         </div>
-        {!mobile && (
-          <p className='tutorial-drag-hint'>Drag to move this panel anywhere on the screen.</p>
-        )}
-        {mobile && (
-          <p className='tutorial-drag-hint'>We’ll take you to each spot, then shrink this tip so you can tap.</p>
-        )}
-        <h2>{title}</h2>
+        <p className='tutorial-drag-hint'>
+          {mobile
+            ? 'Drag the handle to move this panel. Follow the hamburger menu highlight, then tap the page highlight.'
+            : 'Drag the handle to move this panel anywhere on the screen.'}
+        </p>
+        <h2>{current.title}</h2>
         <p>{body}</p>
         <div className='tutorial-actions'>
-          {action && (
-            <button className='btn' onClick={handleAction}>
-              {action}
-            </button>
-          )}
           {step > 0 && (
-            <button className='btn subtle' onClick={onBack}>
+            <button className='btn subtle' onClick={goBack}>
               Back
             </button>
           )}
-          <button className='btn primary' disabled={!ready} onClick={onNext}>
-            {step === steps.length - 1
-              ? 'Finish'
-              : ready
-                ? 'Next step'
-                : 'Complete to continue'}
-          </button>
+          {step === steps.length - 1 ? (
+            <button className='btn primary' onClick={onNext}>Finish</button>
+          ) : <span className='tutorial-waiting'>Click the highlighted control to continue</span>}
           <button
             type='button'
             className='btn subtle'
             onClick={() => {
-              focusTutorialStep(step);
+              if (phase === 'menu') focusTutorialStep('[data-tutorial-menu-trigger]');
+              else if (phase === 'navigation') focusTutorialStep(`[data-tutorial-nav="${current.nav}"]`);
+              else if (phase === 'modal') focusTutorialStep(`[data-tutorial-target="${current.modalTarget}"]`);
+              else if (phase === 'action' && current.target) focusTutorialStep(`[data-tutorial-target="${current.target}"]`);
               if (mobile) setMobilePhase('practice');
               else setDesktopHidden(true);
             }}
@@ -325,5 +462,5 @@ export default function Tutorial({
         </div>
       </section>
     </>
-  );
+  ), portalHost) : null;
 }
