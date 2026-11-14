@@ -3363,8 +3363,8 @@ export default function Workspace({
                   Your hours
                 </span>
                 <span>
-                  <i className='availability-legend-swatch teammates' aria-hidden='true' />
-                  Teammate hours
+                  <i className='availability-legend-overlap' aria-hidden='true'>★</i>
+                  Overlapping hours
                 </span>
                 {googleBusySlots.length > 0 ? (
                   <span className='availability-legend-busy'>
@@ -3508,6 +3508,7 @@ export default function Workspace({
                         const selected = myAvailabilitySet.has(key);
                         const googleBusy = googleBusySet.has(key);
                         const freeHere = memberAvailability.filter((entry) => entry.slots.has(key));
+                        const isOverlap = !past && freeHere.length > 1;
                         const teammatesHere = freeHere.filter((entry) => !entry.self);
                         const focusedEntry = availabilityFocusId
                           ? memberAvailability.find((entry) => entry.member.id === availabilityFocusId)
@@ -3539,7 +3540,7 @@ export default function Workspace({
                               selected ? ', your available hour' : ''
                             }${showBusy ? ', busy on Google Calendar' : ''}${
                               past ? ', time has passed' : ''
-                            }`}
+                            }${isOverlap ? ', overlapping availability' : ''}`}
                             aria-pressed={selected}
                             disabled={past}
                             title={past ? 'Time has passed' : showBusy ? 'Busy' : freeLabel}
@@ -3558,6 +3559,7 @@ export default function Workspace({
                               (showSelf && teammatesHere.length > 0 && !availabilityFocusId
                                 ? ' team-overlap'
                                 : '') +
+                              (isOverlap ? ' slot-overlap' : '') +
                               (availabilityFocusId && focusedFree && !focusedEntry?.self
                                 ? ' slot-focus'
                                 : '') +
@@ -3574,7 +3576,11 @@ export default function Workspace({
                               })
                             }
                           >
-                            {past ? (
+                            {isOverlap ? (
+                              <span className='slot-overlap-star' aria-hidden='true'>
+                                ★
+                              </span>
+                            ) : past ? (
                               <LockKeyhole
                                 size={14}
                                 className='availability-lock'
@@ -3585,17 +3591,6 @@ export default function Workspace({
                             ) : showBusy ? (
                               <span className='slot-busy-label' aria-hidden='true'>
                                 Busy
-                              </span>
-                            ) : null}
-                            {!past && showSelf && !availabilityFocusId && teammatesHere.length > 0 ? (
-                              <span className='slot-marks' aria-hidden='true'>
-                                {teammatesHere.map((entry) => (
-                                  <i
-                                    key={entry.member.id}
-                                    className='slot-mark'
-                                    style={{ background: entry.color }}
-                                  />
-                                ))}
                               </span>
                             ) : null}
                           </button>
