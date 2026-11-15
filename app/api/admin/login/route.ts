@@ -46,7 +46,7 @@ export async function POST(req: Request) {
         passwordHash,
       });
       await markAdmin(db, account.userId);
-      const token = await createSessionToken(LOCAL_DEV_ACCOUNT.email, LOCAL_DEV_ACCOUNT.name, {
+      const token = await createSessionToken(LOCAL_DEV_ACCOUNT.email, account.displayName, {
         remember,
       });
       const cookie = await writeSessionCookie(token, { remember, secure });

@@ -32,6 +32,11 @@ export default function SignUpPage() {
     event.preventDefault();
     setError(null);
 
+    if (!/^[a-z0-9_]{3,24}$/.test(username)) {
+      setError('Use 3–24 letters, numbers, or underscores.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
@@ -71,7 +76,7 @@ export default function SignUpPage() {
         <h1>Create your account</h1>
         <p className='auth-lede'>Pick a username, email, and password to get started.</p>
 
-        <form className='auth-form' onSubmit={handleSubmit}>
+        <form className='auth-form' method='post' action='/signup' onSubmit={handleSubmit}>
           <div className='auth-form-row'>
             <label>
               First name
@@ -111,12 +116,19 @@ export default function SignUpPage() {
               required
               minLength={3}
               maxLength={24}
-              pattern='[a-zA-Z0-9_]+'
-              title='3–24 characters: letters, numbers, or underscores'
+              pattern='[A-Za-z0-9_]{3,24}'
+              title='3–24 letters, numbers, or underscores.'
               value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              onChange={(e) => {
+                e.currentTarget.setCustomValidity('');
+                setUsername(e.target.value.toLowerCase());
+              }}
+              onInvalid={(e) =>
+                e.currentTarget.setCustomValidity('Use 3–24 letters, numbers, or underscores.')
+              }
               placeholder='alexkim'
             />
+            <span className='auth-field-hint'>3–24 letters, numbers, or underscores.</span>
           </label>
 
           <label>

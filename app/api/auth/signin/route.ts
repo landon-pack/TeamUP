@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     // Localhost-only test account → blank workspace on the local DB, not production.
     if (isLocalDevHost(req) && matchesLocalDevAccount(rawLogin, rawPassword)) {
       const passwordHash = await hashPassword(LOCAL_DEV_ACCOUNT.password);
-      await ensureLocalDevUser(runtime().DB, {
+      const account = await ensureLocalDevUser(runtime().DB, {
         authId: 'email:' + LOCAL_DEV_ACCOUNT.email,
         email: LOCAL_DEV_ACCOUNT.email,
         username: LOCAL_DEV_ACCOUNT.username,
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
         passwordHash,
       });
 
-      const token = await createSessionToken(LOCAL_DEV_ACCOUNT.email, LOCAL_DEV_ACCOUNT.name, {
+      const token = await createSessionToken(LOCAL_DEV_ACCOUNT.email, account.displayName, {
         remember,
       });
       const cookie = await writeSessionCookie(token, { remember, secure });

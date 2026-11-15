@@ -1,11 +1,7 @@
 import { env } from 'cloudflare:workers';
-import { cookies } from 'next/headers';
 import { getSessionUser } from '@/lib/auth';
 import { ensureUser, getProject } from './store';
 import { recordActivity } from './usage';
-
-const ACTIVITY_COOKIE = 'teamup_active';
-const ACTIVITY_GAP_MS = 30 * 60 * 1000;
 
 export const runtime = () =>
   env as unknown as {
@@ -32,31 +28,17 @@ export async function identity() {
     runtime().DB,
     user.userId,
     email,
+    // Used only when this account row does not exist yet. Existing nicknames stay put.
     legacy?.name || user.fullName || user.displayName || email.split('@')[0],
   );
   await noteDailyActivity(account.userId);
   return account;
 }
 
-/** One write per stretch of use. Remembered sessions count as soon as they open the app. */
-async function noteDailyActivity(userId: string) {
+/** Record this visit immediately. Stretch counts still wait 30 minutes between increments. */
+export async function noteDailyActivity(userId: string) {
   try {
-    const now = new Date();
-    const day = now.toISOString().slice(0, 10);
-    const jar = await cookies();
-    const [stampDay, stampTime] = (jar.get(ACTIVITY_COOKIE)?.value || '').split('|');
-    const stampMs = Date.parse(stampTime || '');
-    if (stampDay === day && Number.isFinite(stampMs) && now.getTime() - stampMs < ACTIVITY_GAP_MS) {
-      return;
-    }
-    await recordActivity(runtime().DB, userId, now);
-    jar.set(ACTIVITY_COOKIE, `${day}|${now.toISOString()}`, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24,
-      secure: process.env.NODE_ENV === 'production',
-    });
+    await recordActivity(runtime().DB, userId, new Date());
   } catch (error) {
     console.error('Activity tracking failed', error);
   }

@@ -65,8 +65,7 @@ export function projectCreatedStatements(db: D1Database, ownerId: string, projec
 
 /**
  * Remember that this account used TeamUP today.
- * A row means they were active that UTC day, including a remembered session.
- * `actions` goes up when the next use is at least 30 minutes after the last one.
+ * `last_seen` is the latest visit. `actions` goes up when the next stretch is at least 30 minutes later.
  */
 export async function recordActivity(db: D1Database, userId: string, now = new Date()) {
   const day = now.toISOString().slice(0, 10);
@@ -74,11 +73,12 @@ export async function recordActivity(db: D1Database, userId: string, now = new D
   const gapStart = new Date(now.getTime() - ACTIVITY_GAP_MS).toISOString();
   await db
     .prepare(
-      `INSERT INTO account_activity(user_id, day, actions, last_seen) VALUES(?, ?, 1, ?)
+      `INSERT INTO account_activity(user_id, day, actions, last_seen, stretch_seen) VALUES(?, ?, 1, ?, ?)
        ON CONFLICT(user_id, day) DO UPDATE SET
-         actions = CASE WHEN account_activity.last_seen <= ? THEN account_activity.actions + 1 ELSE account_activity.actions END,
-         last_seen = CASE WHEN account_activity.last_seen <= ? THEN ? ELSE account_activity.last_seen END`,
+         actions = CASE WHEN account_activity.stretch_seen <= ? THEN account_activity.actions + 1 ELSE account_activity.actions END,
+         stretch_seen = CASE WHEN account_activity.stretch_seen <= ? THEN ? ELSE account_activity.stretch_seen END,
+         last_seen = ?`,
     )
-    .bind(userId, day, seen, gapStart, gapStart, seen)
+    .bind(userId, day, seen, seen, gapStart, gapStart, seen, seen)
     .run();
 }

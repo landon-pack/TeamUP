@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import AuthPasswordField from '../auth-password-field';
 
 type Account = {
@@ -102,6 +102,7 @@ export default function AdminConsole() {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [detailVersion, setDetailVersion] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Account | null>(null);
+  const detailRowRef = useRef<HTMLTableRowElement | null>(null);
 
   async function loadOverview() {
     const response = await fetch('/api/admin/overview', { cache: 'no-store', credentials: 'same-origin' });
@@ -134,6 +135,7 @@ export default function AdminConsole() {
       return;
     }
     let cancelled = false;
+    setDetail(null);
     setDetailError(null);
     fetch(`/api/admin/accounts/${encodeURIComponent(selectedId)}`, {
       cache: 'no-store',
@@ -159,6 +161,11 @@ export default function AdminConsole() {
       cancelled = true;
     };
   }, [selectedId, detailVersion]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    detailRowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [selectedId, detail, detailError]);
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -298,10 +305,11 @@ export default function AdminConsole() {
             <p className='auth-error'>Signed in as {signedInAs}, which isn’t an admin.</p>
           ) : null}
           {error ? <p className='auth-error'>{error}</p> : null}
-          <form className='auth-form' onSubmit={submitLogin}>
+          <form className='auth-form' method='post' action='/admin' onSubmit={submitLogin}>
             <label>
               Email or username
               <input
+                name='login'
                 value={login}
                 onChange={(event) => setLogin(event.target.value)}
                 autoComplete='username'
@@ -310,6 +318,7 @@ export default function AdminConsole() {
             </label>
             <AuthPasswordField
               label='Password'
+              name='password'
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete='current-password'
@@ -401,134 +410,145 @@ export default function AdminConsole() {
             ) : (
               rows.map((account) => {
                 const open = selectedId === account.id;
+                const showDetail = open && detail?.account.id === account.id;
                 return (
-                  <tr
-                    key={account.id}
-                    className={open ? 'is-open' : undefined}
-                    tabIndex={0}
-                    aria-expanded={open}
-                    onClick={() => toggleDetail(account.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        toggleDetail(account.id);
-                      }
-                    }}
-                  >
-                    <td>{account.name}</td>
-                    <td>{account.username || '—'}</td>
-                    <td>{account.email}</td>
-                    <td>{account.daysUsed.toLocaleString()}</td>
-                    <td>{formatWhen(account.lastSeen)}</td>
-                    <td>{account.projectsCreated.toLocaleString()}</td>
-                    <td>{account.projects.toLocaleString()}</td>
-                    <td>{account.admin ? 'Admin' : 'Member'}</td>
-                    <td className='admin-row-actions'>
-                      <button
-                        type='button'
-                        className='btn'
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openEdit(account);
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type='button'
-                        className='btn admin-delete'
-                        disabled={account.id === overview.viewerId}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setError(null);
-                          setPendingDelete(account);
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
+                  <Fragment key={account.id}>
+                    <tr
+                      className={open ? 'is-open' : undefined}
+                      tabIndex={0}
+                      aria-expanded={open}
+                      onClick={() => toggleDetail(account.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          toggleDetail(account.id);
+                        }
+                      }}
+                    >
+                      <td>{account.name}</td>
+                      <td>{account.username || '—'}</td>
+                      <td>{account.email}</td>
+                      <td>{account.daysUsed.toLocaleString()}</td>
+                      <td>{formatWhen(account.lastSeen)}</td>
+                      <td>{account.projectsCreated.toLocaleString()}</td>
+                      <td>{account.projects.toLocaleString()}</td>
+                      <td>{account.admin ? 'Admin' : 'Member'}</td>
+                      <td className='admin-row-actions'>
+                        <button
+                          type='button'
+                          className='btn'
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openEdit(account);
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type='button'
+                          className='btn admin-delete'
+                          disabled={account.id === overview.viewerId}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setError(null);
+                            setPendingDelete(account);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                    {open ? (
+                      <tr className='admin-detail-row' ref={detailRowRef}>
+                        <td colSpan={9}>
+                          <section className='admin-detail' aria-live='polite'>
+                            {!showDetail && !detailError ? (
+                              <p className='admin-loading'>Loading activity…</p>
+                            ) : null}
+                            {detailError ? <p className='auth-error'>{detailError}</p> : null}
+                            {showDetail && detail ? (
+                              <>
+                                <header>
+                                  <h2>{detail.account.name}</h2>
+                                  <p className='subtext'>
+                                    {`${detail.account.projectsCreated.toLocaleString()} project${detail.account.projectsCreated === 1 ? '' : 's'} created by ${detail.account.name}. Deleting a project does not lower this number. ${detail.account.daysUsed.toLocaleString()} day${detail.account.daysUsed === 1 ? '' : 's'} on TeamUP${
+                                      detail.account.actions
+                                        ? ` · ${detail.account.actions.toLocaleString()} stretch${detail.account.actions === 1 ? '' : 'es'} of use`
+                                        : ''
+                                    }. Days are UTC. Opening the app counts, including a remembered sign-in. A new stretch starts after 30 quiet minutes.`}
+                                  </p>
+                                </header>
+                                <div className='admin-detail-grid'>
+                                  <div>
+                                    <h3>Days used</h3>
+                                    {detail.activity.length === 0 ? (
+                                      <p className='muted'>No use recorded yet.</p>
+                                    ) : (
+                                      <table className='admin-table admin-table-compact'>
+                                        <thead>
+                                          <tr>
+                                            <th>Day</th>
+                                            <th>Stretches</th>
+                                            <th>Last seen</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {detail.activity.map((day) => (
+                                            <tr key={day.day}>
+                                              <td>{formatDay(day.day)}</td>
+                                              <td>{day.actions.toLocaleString()}</td>
+                                              <td>{formatWhen(day.lastSeen)}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <h3>Active projects</h3>
+                                    <p className='subtext admin-shared-note'>
+                                      Tasks created and milestones accomplished are totals for the whole
+                                      project. Everyone on the project shares those numbers.
+                                    </p>
+                                    {detail.projects.length === 0 ? (
+                                      <p className='muted'>Not on a project right now.</p>
+                                    ) : (
+                                      <table className='admin-table admin-table-compact'>
+                                        <thead>
+                                          <tr>
+                                            <th>Project</th>
+                                            <th>Role</th>
+                                            <th>Tasks created</th>
+                                            <th>Milestones accomplished</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {detail.projects.map((project) => (
+                                            <tr key={project.id}>
+                                              <td>{project.title}</td>
+                                              <td>{project.role}</td>
+                                              <td>{project.tasksCreated.toLocaleString()}</td>
+                                              <td>{project.milestonesCreated.toLocaleString()}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    )}
+                                  </div>
+                                </div>
+                              </>
+                            ) : null}
+                          </section>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
                 );
               })
             )}
           </tbody>
         </table>
       </div>
-
-      {selectedId ? (
-        <section className='admin-detail' aria-live='polite'>
-          {!detail && !detailError ? <p className='admin-loading'>Loading activity…</p> : null}
-          {detailError ? <p className='auth-error'>{detailError}</p> : null}
-          {detail ? (
-            <>
-              <header>
-                <h2>{detail.account.name}</h2>
-                <p className='subtext'>
-                  {`${detail.account.projectsCreated.toLocaleString()} project${detail.account.projectsCreated === 1 ? '' : 's'} created by ${detail.account.name}. Deleting a project does not lower this number. ${detail.account.daysUsed.toLocaleString()} day${detail.account.daysUsed === 1 ? '' : 's'} on TeamUP${
-                    detail.account.actions
-                      ? ` · ${detail.account.actions.toLocaleString()} stretch${detail.account.actions === 1 ? '' : 'es'} of use`
-                      : ''
-                  }. Days are UTC. Opening the app counts, including a remembered sign-in. A new stretch starts after 30 quiet minutes.`}
-                </p>
-              </header>
-              <div className='admin-detail-grid'>
-                <div>
-                  <h3>Days used</h3>
-                  {detail.activity.length === 0 ? (
-                    <p className='muted'>No use recorded yet.</p>
-                  ) : (
-                    <table className='admin-table admin-table-compact'>
-                      <thead>
-                        <tr>
-                          <th>Day</th>
-                          <th>Stretches</th>
-                          <th>Last seen</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detail.activity.map((day) => (
-                          <tr key={day.day}>
-                            <td>{formatDay(day.day)}</td>
-                            <td>{day.actions.toLocaleString()}</td>
-                            <td>{formatWhen(day.lastSeen)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-                <div>
-                  <h3>Active projects</h3>
-                  {detail.projects.length === 0 ? (
-                    <p className='muted'>Not on a project right now.</p>
-                  ) : (
-                    <table className='admin-table admin-table-compact'>
-                      <thead>
-                        <tr>
-                          <th>Project</th>
-                          <th>Role</th>
-                          <th>Tasks</th>
-                          <th>Milestones Accomplished</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detail.projects.map((project) => (
-                          <tr key={project.id}>
-                            <td>{project.title}</td>
-                            <td>{project.role}</td>
-                            <td>{project.tasksCreated.toLocaleString()}</td>
-                            <td>{project.milestonesCreated.toLocaleString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            </>
-          ) : null}
-        </section>
-      ) : null}
 
       {editor ? (
         <div className='admin-modal' role='presentation'>

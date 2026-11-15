@@ -12,7 +12,7 @@ export const users = sqliteTable(
   {
     id: text('id').primaryKey(),
     authId: text('auth_id'),
-    /** Full display name — kept in sync as "first last" for existing UI. */
+    /** Account nickname. Stored as one name; not split into first and last. */
     name: text('name').notNull(),
     firstName: text('first_name'),
     lastName: text('last_name'),
@@ -75,6 +75,8 @@ export const accountActivity = sqliteTable(
     day: text('day').notNull(),
     actions: integer('actions').notNull().default(0),
     lastSeen: text('last_seen').notNull(),
+    /** Start of the current stretch. Used so last_seen can move without counting every refresh. */
+    stretchSeen: text('stretch_seen').notNull().default(''),
   },
   (t) => [primaryKey({ columns: [t.userId, t.day] }), index('account_activity_day').on(t.day)],
 );

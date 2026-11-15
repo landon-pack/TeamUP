@@ -36,8 +36,8 @@ export async function GET(req: Request) {
       {
         user: {
           id: u.userId,
-          // Prefer username for local admin so the sidebar shows "admin".
-          name: profile.username || profile.name || u.displayName,
+          // Account nickname lives in users.name and must survive reload.
+          name: (typeof profile.name === 'string' && profile.name.trim()) || profile.username || u.displayName,
           username: profile.username || '',
           email: u.email,
           address: profile.address || '',
@@ -86,9 +86,6 @@ export async function POST(req: Request) {
           .slice(0, 80),
         zone = String(body.timeZone || 'UTC');
       if (!name) return Response.json({ error: 'Enter a nickname.' }, { status: 400 });
-      const nameParts = name.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ');
       const projectNickname = String(body.projectNickname || '')
         .trim()
         .replace(/\s+/g, ' ')
@@ -108,12 +105,8 @@ export async function POST(req: Request) {
         );
       }
       await DB.batch([
-        DB.prepare(
-          'UPDATE users SET name=?,first_name=?,last_name=?,address=?,phone=? WHERE id=?',
-        ).bind(
+        DB.prepare('UPDATE users SET name=?,address=?,phone=? WHERE id=?').bind(
           name,
-          firstName,
-          lastName,
           String(body.address || '').slice(0, 300),
           String(body.phone || '').slice(0, 40),
           u.userId,

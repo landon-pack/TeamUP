@@ -14,7 +14,7 @@ import {
 } from './auth';
 import { LOCAL_DEV_ACCOUNT } from './local-dev-account';
 import { hashPassword } from './password';
-import { runtime } from './server';
+import { noteDailyActivity, runtime } from './server';
 import { createPasswordUser, userKey } from './store';
 
 export type AdminAccount = {
@@ -161,6 +161,7 @@ export async function requireAdmin() {
   }
 
   if (row.admin !== 1) await markAdmin(db, row.id);
+  await noteDailyActivity(row.id);
   return { ok: true as const, db, adminId: row.id, email: row.email };
 }
 

@@ -8,11 +8,13 @@ const scoped = (project: string, id: string) =>
   id.startsWith(project + ':') ? id : project + ':' + id;
 export async function ensureUser(db: D1Database, authId: string, email: string, name: string) {
   const id = userKey(email);
-  // Does not touch username / password_hash — those are set only at signup.
+  // Name is the account nickname. Set it only when the row is created.
+  // Later sign-ins must not overwrite users.name, first_name, or last_name.
+  // Username and password_hash are set only at signup.
   await db.batch([
     db
       .prepare(
-        'INSERT INTO users(id,auth_id,name,email) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET auth_id=excluded.auth_id, name=excluded.name',
+        'INSERT INTO users(id,auth_id,name,email) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET auth_id=excluded.auth_id',
       )
       .bind(id, authId, name, email),
     db.prepare('INSERT OR IGNORE INTO settings(user_id) VALUES(?)').bind(id),
@@ -48,9 +50,6 @@ export async function ensureLocalDevUser(
          VALUES(?,?,?,?,?,?,?,?)
          ON CONFLICT(id) DO UPDATE SET
            auth_id=excluded.auth_id,
-           name=excluded.name,
-           first_name=excluded.first_name,
-           last_name=excluded.last_name,
            username=excluded.username,
            password_hash=excluded.password_hash`,
       )
@@ -66,7 +65,16 @@ export async function ensureLocalDevUser(
       ),
     db.prepare('INSERT OR IGNORE INTO settings(user_id) VALUES(?)').bind(id),
   ]);
-  return { userId: id, authUserId: input.authId, email: input.email, displayName: input.name };
+  const row = await db
+    .prepare('SELECT name FROM users WHERE id=?')
+    .bind(id)
+    .first<{ name: string }>();
+  return {
+    userId: id,
+    authUserId: input.authId,
+    email: input.email,
+    displayName: row?.name || input.name,
+  };
 }
 
 export type PasswordUserRow = {

@@ -72,7 +72,7 @@ export default function SignInForm() {
           </p>
         ) : null}
 
-        <form className='auth-form' onSubmit={handleSubmit}>
+        <form className='auth-form' method='post' action='/signin' onSubmit={handleSubmit}>
           <label>
             Email or username
             <input

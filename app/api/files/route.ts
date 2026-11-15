@@ -1,4 +1,5 @@
 import { identity, runtime, projectFor, failure, sameOrigin } from '@/lib/server';
+import { previewContentType } from '@/lib/file-preview';
 export async function GET(req: Request) {
   try {
     const user = await identity();
@@ -15,15 +16,19 @@ export async function GET(req: Request) {
       const blob = await BUCKET.get(row.storage_key || row.id);
       if (!blob) return new Response('Not found', { status: 404 });
       const preview = url.searchParams.get('preview') === '1';
-      const previewTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-      if (preview && !previewTypes.has(row.type.toLowerCase()))
-        return new Response('Preview unavailable for this file type.', { status: 415 });
+      const previewType = preview ? previewContentType(row.name, row.type) : '';
+      if (preview && !previewType)
+        return Response.json({ error: 'This file needs to be downloaded to open it.' }, { status: 415 });
+      const filename = `filename*=UTF-8''${encodeURIComponent(row.name)}`;
       return new Response(blob.body, {
         headers: {
-          'Content-Type': preview ? row.type.toLowerCase() : 'application/octet-stream',
-          'Content-Disposition': `${preview ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(row.name)}`,
+          'Content-Type': previewType || 'application/octet-stream',
+          'Content-Disposition': preview ? `inline; ${filename}` : `attachment; ${filename}`,
           'X-Content-Type-Options': 'nosniff',
-          ...(preview ? { 'Content-Security-Policy': "default-src 'none'; sandbox" } : {}),
+          'Cache-Control': 'private, no-store',
+          ...(previewType.startsWith('image/')
+            ? { 'Content-Security-Policy': "default-src 'none'; sandbox" }
+            : {}),
         },
       });
     }

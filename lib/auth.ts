@@ -105,7 +105,7 @@ export function validateUsername(raw: unknown): AuthError | AuthOk<{ username: s
   if (!USERNAME_RE.test(username)) {
     return {
       ok: false,
-      error: 'Username must be 3–24 characters: lowercase letters, numbers, or underscores.',
+      error: 'Use 3–24 letters, numbers, or underscores.',
     };
   }
   return { ok: true, username };

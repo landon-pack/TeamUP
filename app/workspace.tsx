@@ -16,6 +16,7 @@ import Tutorial from './tutorial';
 import PlanReview, { type SuggestedPlan } from './plan-review';
 import { practiceProject, demoUser } from '@/lib/demo';
 import { projectRole } from '@/lib/project-permissions';
+import { filePreviewKind } from '@/lib/file-preview';
 import {
   clearLocalAdminSession,
   hasLocalAdminSession,
@@ -41,6 +42,7 @@ import {
   Paperclip,
   Mail,
   Download,
+  Eye,
   Settings,
   ArrowRight,
   CircleHelp,
@@ -171,7 +173,8 @@ const PAGE_HELP: Record<string, { description: string; tips: string[] }> = {
     description: 'Keep shared project documents and other files together for the team.',
     tips: [
       'Upload a file to make it available to project members.',
-      'Use the download link in the file list to retrieve a shared file.',
+      'Preview images, PDFs, text, audio, and video without downloading them.',
+      'Use Download when a file can’t be previewed, or when you want a copy.',
       'Each upload can be up to 10 MB.',
     ],
   },
@@ -411,6 +414,54 @@ function rememberLocalTutorialSeen() {
   }
 }
 
+function FilePreview({
+  name,
+  type,
+  projectId,
+  fileId,
+  text,
+  loading,
+}: {
+  name: string;
+  type: string;
+  projectId: string;
+  fileId: string;
+  text: string;
+  loading: boolean;
+}) {
+  const kind = filePreviewKind(name, type);
+  const src =
+    '/api/files?project=' +
+    encodeURIComponent(projectId) +
+    '&id=' +
+    encodeURIComponent(fileId) +
+    '&preview=1';
+  const download =
+    '/api/files?project=' + encodeURIComponent(projectId) + '&id=' + encodeURIComponent(fileId);
+  if (kind === 'none') {
+    return (
+      <div className='file-preview'>
+        <p className='form-note'>
+          This file can’t be shown here. Download it to open it on your computer.
+        </p>
+        <a className='btn' href={download}>
+          <Download size={16} /> Download
+        </a>
+      </div>
+    );
+  }
+  return (
+    <div className='file-preview'>
+      {kind === 'image' && <img src={src} alt={name} />}
+      {kind === 'pdf' && <iframe title={name} src={src} />}
+      {kind === 'audio' && <audio controls src={src} />}
+      {kind === 'video' && <video controls src={src} />}
+      {kind === 'text' &&
+        (loading ? <p className='form-note'>Opening preview…</p> : <pre>{text}</pre>)}
+    </div>
+  );
+}
+
 export default function Workspace({
   demoMode = false,
   initialLocalAdmin = false,
@@ -501,6 +552,8 @@ export default function Workspace({
   const availabilityExpandedForRef = useRef<string | null>(null);
   const [draft, setDraft] = useState<any>({});
   const [files, setFiles] = useState<any[]>([]);
+  const [filePreviewText, setFilePreviewText] = useState('');
+  const [filePreviewLoading, setFilePreviewLoading] = useState(false);
   const [aiReady, setAiReady] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [pendingInvites, setPendingInvites] = useState<
@@ -684,6 +737,8 @@ export default function Workspace({
     countAt: availabilityCountAt,
     total: project.members.length,
   });
+  const viewerSharedHours = (project.availability[me] || []).length > 0;
+  const teammateSharedHours = memberAvailability.some((entry) => !entry.self && entry.slots.size > 0);
   const outsideRelevantSlots = countSlotsOutsideDefaultBand({
     dates: availabilityDates,
     include: (slotKey) => {
@@ -989,6 +1044,59 @@ export default function Workspace({
     } catch (error) {
       toast.error((error as Error).message || 'Could not update that invite.');
     }
+  }
+
+  function pendingInviteList() {
+    if (!pendingInvites.length) return null;
+    return (
+      <div className='pending-invite-list'>
+        {pendingInvites.map((invite) => (
+          <div className='pending-invite-row' key={invite.id}>
+            <div className='pending-invite-copy'>
+              <strong>{invite.projectName}</strong>
+              <small className='block'>
+                {invite.inviterName ? `${invite.inviterName} invited you` : 'You were invited'}
+                {' · '}
+                {new Date(invite.createdAt).toLocaleString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </small>
+            </div>
+            <div className='pending-invite-actions'>
+              <button
+                type='button'
+                className='btn primary'
+                disabled={busy}
+                onClick={() =>
+                  void respondToInvite(invite.id, 'accept', {
+                    actorName: invite.inviterName,
+                    projectName: invite.projectName,
+                  })
+                }
+              >
+                Accept
+              </button>
+              <button
+                type='button'
+                className='btn'
+                disabled={busy}
+                onClick={() =>
+                  void respondToInvite(invite.id, 'reject', {
+                    actorName: invite.inviterName,
+                    projectName: invite.projectName,
+                  })
+                }
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   function applyAvatarUrl(avatarUrl: string) {
@@ -1308,11 +1416,6 @@ export default function Workspace({
             setLocalOnly(false);
             setUser({
               ...data.user,
-              // Force sidebar label for the hardcoded local admin.
-              name:
-                data.user.username === 'admin' || data.user.email === 'admin@teamup.local'
-                  ? 'admin'
-                  : data.user.name,
               username:
                 data.user.username ||
                 (data.user.email === 'admin@teamup.local' ? 'admin' : data.user.username),
@@ -1770,7 +1873,7 @@ export default function Workspace({
   async function syncGoogleCalendar() {
     if (!requireProject()) return;
     if (!googleCalendarClientId) {
-      toast.error('Google Calendar sync needs an OAuth client ID. See docs/google-calendar-sync.md.');
+      toast.error('Calendar sync is not available on this server.');
       return;
     }
     if (!googleIdentityReady) {
@@ -2731,38 +2834,51 @@ export default function Workspace({
                         <div
                           key={n.id}
                           className={`notification-item${n.read ? '' : ' unread'}`}
-                          onClick={() => {
-                            if (!n.read) void markNotifications('read', [n.id]);
-                            if (pendingInvite) {
-                              setNotifOpen(false);
-                              setView('Invites');
-                              return;
-                            }
-                            if (n.type === 'member_left' && n.meta.handoffTaskIds) {
-                              void openTaskHandoff(n);
-                              return;
-                            }
-                            if (n.projectId && n.projectId !== project.id) {
-                              const target = projects.find((p) => p.id === n.projectId);
-                              if (target) selectProject(target);
-                            }
-                            setNotifOpen(false);
-                          }}
                         >
-                          <span className='notification-item-title'>{n.title}</span>
-                          <span className='notification-item-body'>
+                          <button
+                            type='button'
+                            className='notification-item-open'
+                            onClick={() => {
+                              if (!n.read) void markNotifications('read', [n.id]);
+                              if (pendingInvite) {
+                                setNotifOpen(false);
+                                setView('Invites');
+                                return;
+                              }
+                              if (n.type === 'member_left' && n.meta.handoffTaskIds) {
+                                void openTaskHandoff(n);
+                                return;
+                              }
+                              if (n.projectId && n.projectId !== project.id) {
+                                const target = projects.find((p) => p.id === n.projectId);
+                                if (target) selectProject(target);
+                              }
+                              setNotifOpen(false);
+                            }}
+                          >
+                            <span className='notification-item-title'>{n.title}</span>
+                            <span className='notification-item-body'>
                               {pendingInvite
                                 ? `${n.body} Open Invites to accept or decline.`
                                 : n.body}
-                          </span>
-                          <span className='notification-item-time'>
-                            {new Date(n.createdAt).toLocaleString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: 'numeric',
-                              minute: '2-digit',
-                            })}
-                          </span>
+                            </span>
+                            <span className='notification-item-time'>
+                              {new Date(n.createdAt).toLocaleString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </button>
+                          <button
+                            type='button'
+                            className='btn subtle notification-clear'
+                            aria-label={`Clear notification: ${n.title}`}
+                            onClick={() => void clearNotificationsList('clear', [n.id])}
+                          >
+                            Clear
+                          </button>
                         </div>
                       );
                     })
@@ -2814,8 +2930,8 @@ export default function Workspace({
               <span>
                 {isLocalAdmin ? (
                   <>
-                    <strong>Local admin</strong> · Signed in as <strong>admin</strong>. Create
-                    projects and tasks here for testing. Changes stay on this device.
+                    <strong>Localhost admin</strong> · This is the localhost admin account. Projects,
+                    tasks, and other data are stored in the local database on this machine.
                   </>
                 ) : (
                   <>
@@ -2932,7 +3048,61 @@ export default function Workspace({
               </button>
             )}
           </div>
-          {isDemo && startupNoticeReady && (!loading || showStartupNotice) && (
+          {isDemo && !loading && user && pendingInvites.length > 0 && view !== 'Invites' && (
+            <section className='panel'>
+              <div className='panel-heading'>
+                <div>
+                  <h2>Invites</h2>
+                  <p className='subtext'>You have pending invites. Accept one to join that project.</p>
+                </div>
+              </div>
+              {pendingInviteList()}
+              {view !== 'Availability' ? (
+                <div className='pending-invite-create'>
+                  <p className='subtext'>Or start a project of your own.</p>
+                  <button
+                    className='btn'
+                    type='button'
+                    onClick={() => open('project', { due: future(14) })}
+                  >
+                    <Plus size={16} />
+                    Create a project
+                  </button>
+                </div>
+              ) : null}
+            </section>
+          )}
+          {isDemo && !loading && view === 'Availability' && (
+            <section className='panel'>
+              <div className='panel-heading'>
+                <div>
+                  <h2>Find time together</h2>
+                  <p className='subtext'>
+                    A project is required. Create one, or accept an invite, before sharing hours.
+                  </p>
+                </div>
+              </div>
+              {user ? (
+                <button
+                  className='btn primary'
+                  type='button'
+                  onClick={() => open('project', { due: future(14) })}
+                >
+                  <Plus size={16} />
+                  Create a project
+                </button>
+              ) : (
+                <a className='btn primary' href='/signin?return_to=%2Fworkspace%2Favailability'>
+                  Sign in to get started
+                </a>
+              )}
+            </section>
+          )}
+          {isDemo &&
+            view !== 'Availability' &&
+            !(user && pendingInvites.length > 0) &&
+            startupNoticeReady &&
+            (!loading || showStartupNotice) && (
             <section className='welcome-panel'>
               <span className='welcome-icon'>
                 <Layers size={32} />
@@ -3231,57 +3401,7 @@ export default function Workspace({
                   </p>
                 </div>
               </div>
-              {pendingInvites.length > 0 && (
-                <div className='pending-invite-list'>
-                  {pendingInvites.map((invite) => (
-                    <div className='pending-invite-row' key={invite.id}>
-                      <div className='pending-invite-copy'>
-                        <strong>{invite.projectName}</strong>
-                        <small className='block'>
-                          {invite.inviterName
-                            ? `${invite.inviterName} invited you`
-                            : 'You were invited'}
-                          {' · '}
-                          {new Date(invite.createdAt).toLocaleString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                          })}
-                        </small>
-                      </div>
-                      <div className='pending-invite-actions'>
-                        <button
-                          type='button'
-                          className='btn primary'
-                          disabled={busy}
-                          onClick={() =>
-                            void respondToInvite(invite.id, 'accept', {
-                              actorName: invite.inviterName,
-                              projectName: invite.projectName,
-                            })
-                          }
-                        >
-                          Accept
-                        </button>
-                        <button
-                          type='button'
-                          className='btn'
-                          disabled={busy}
-                          onClick={() =>
-                            void respondToInvite(invite.id, 'reject', {
-                              actorName: invite.inviterName,
-                              projectName: invite.projectName,
-                            })
-                          }
-                        >
-                          Decline
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {pendingInviteList()}
             </section>
           )}
           {!isDemo && view === 'AI planning' && (
@@ -3453,9 +3573,11 @@ export default function Workspace({
                   </ul>
                 ) : (
                   <p>
-                    {submittedSchedules < 2
-                      ? 'When a teammate adds hours, the best overlaps show up here.'
-                      : 'No shared hours in this week yet.'}
+                    {teammateSharedHours && !viewerSharedHours
+                      ? 'Add your hours to see when you overlap. A teammate has already shared theirs.'
+                      : !teammateSharedHours
+                        ? 'When a teammate adds hours, the best overlaps show up here.'
+                        : 'No shared hours in this week yet.'}
                   </p>
                 )}
               </div>
@@ -3762,6 +3884,40 @@ export default function Workspace({
                       <h3>{f.name}</h3>
                       <p className='subtext'>{Math.ceil(f.size / 1024)} KB</p>
                     </div>
+                    <button
+                      type='button'
+                      className='btn'
+                      onClick={() => {
+                        const kind = filePreviewKind(f.name, f.type);
+                        setFilePreviewText('');
+                        setFilePreviewLoading(kind === 'text');
+                        open('file-preview', {
+                          id: f.id,
+                          name: f.name,
+                          type: f.type,
+                          projectId: project.id,
+                        });
+                        if (kind !== 'text') return;
+                        const previewUrl =
+                          '/api/files?project=' +
+                          encodeURIComponent(project.id) +
+                          '&id=' +
+                          encodeURIComponent(f.id) +
+                          '&preview=1';
+                        void fetch(previewUrl)
+                          .then(async (response) => {
+                            if (!response.ok) throw new Error('Could not preview this file.');
+                            setFilePreviewText(await response.text());
+                          })
+                          .catch((error) => {
+                            setFilePreviewText('');
+                            toast.error((error as Error).message);
+                          })
+                          .finally(() => setFilePreviewLoading(false));
+                      }}
+                    >
+                      <Eye size={16} /> Preview
+                    </button>
                     <a className='btn' href={'/api/files?project=' + project.id + '&id=' + f.id}>
                       <Download size={16} /> Download
                     </a>
@@ -3832,10 +3988,11 @@ export default function Workspace({
                 <span>Manage teammates and invitations here. Use the three-dot menu beside a project to edit its details and reminders.</span>
               </div>
               {isOwner && !localOnly ? <InviteLink key={project.id} project={project.id} /> : null}
-              <section className='panel team-list-panel'>
+              <section className='panel team-list-panel' data-tutorial-step='4'>
                 <div className='panel-heading'>
                   <h2>Your project team</h2>
                 </div>
+                <div className='team-list-body'>
                 <p className='form-note team-list-hint'>
                   Click a teammate to see their tasks and reassign work.
                 </p>
@@ -3868,6 +4025,7 @@ export default function Workspace({
                     </button>
                   );
                 })}
+                </div>
               </section>
             </>
           )}
@@ -3985,7 +4143,11 @@ export default function Workspace({
       >
         <DialogContent
           className={`max-h-[88vh] overflow-x-hidden overflow-y-auto ${
-            (modal === 'planner' && plan) || modal === 'handoff' ? 'sm:max-w-[640px]' : 'sm:max-w-[520px]'
+            modal === 'file-preview'
+              ? 'sm:max-w-[860px]'
+              : (modal === 'planner' && plan) || modal === 'handoff'
+                ? 'sm:max-w-[640px]'
+                : 'sm:max-w-[520px]'
           }`}
           onPointerDownOutside={(event) => {
             const target = event.target;
@@ -4017,6 +4179,7 @@ export default function Workspace({
                   'leave-project': 'Leave project',
                   handoff: 'Review task handoff',
                   'rename-file': 'Rename file',
+                  'file-preview': draft.name || 'File preview',
                 }[modal]
               }
             </DialogTitle>
@@ -4039,12 +4202,24 @@ export default function Workspace({
                         : 'Add a milestone to mark progress.'
                       : modal === 'rename-file'
                         ? 'Choose a clearer name for this shared file.'
+                        : modal === 'file-preview'
+                          ? 'Look at this file here. Download it if you want a copy on your computer.'
                         : modal === 'leave-project'
                           ? 'You can rejoin later if someone invites you again.'
                           : 'Keep your team on the same page.'}
             </DialogDescription>
           </DialogHeader>
           {error && <div className='error'>{error}</div>}
+          {modal === 'file-preview' && (
+            <FilePreview
+              name={draft.name || 'File'}
+              type={draft.type || ''}
+              projectId={draft.projectId || project.id}
+              fileId={draft.id}
+              text={filePreviewText}
+              loading={filePreviewLoading}
+            />
+          )}
           {modal === 'ai-settings' && (
             <ConnectAI
               onConnected={() => {
