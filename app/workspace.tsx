@@ -13,6 +13,7 @@ import AvatarCropDialog from './avatar-crop';
 import ConnectAI from './connect-ai';
 import InviteLink from './invite-link';
 import Tutorial from './tutorial';
+import { useIsMobile } from '@/hooks/use-mobile';
 import PlanReview, { type SuggestedPlan } from './plan-review';
 import { practiceProject, demoUser } from '@/lib/demo';
 import { projectRole } from '@/lib/project-permissions';
@@ -84,7 +85,6 @@ import {
   dayAvailabilitySummaries,
   hourLabel,
   slotKeyFor,
-  teammateSlotBackground,
 } from '@/lib/availability-calendar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -465,6 +465,10 @@ const TUTORIAL_SEEN_KEY = 'teamup.tutorialSeen';
 const WORKSPACE_VIEW_KEY = 'teamup.workspace.view';
 const DEMO_SESSION_KEY = 'teamup.demo.sessionActive';
 
+function isPhoneLayout() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+}
+
 function hasLocalTutorialSeen() {
   try {
     return localStorage.getItem(TUTORIAL_SEEN_KEY) === '1';
@@ -548,6 +552,7 @@ export default function Workspace({
   const view = workspaceViewByPath[routeSegment as keyof typeof workspaceViewByPath] || 'Overview';
   const [tour, setTour] = useState<number | null>(null);
   const [tutorialPrompt, setTutorialPrompt] = useState(false);
+  const phoneLayout = useIsMobile();
   const tutorialPromptStarting = useRef(false);
   const [canConfigureAI, setCanConfigureAI] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -708,8 +713,20 @@ export default function Workspace({
   }, [project]);
 
   useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)');
+    const hideTutorial = () => {
+      if (!media.matches) return;
+      setTutorialPrompt(false);
+      setTour(null);
+    };
+    hideTutorial();
+    media.addEventListener('change', hideTutorial);
+    return () => media.removeEventListener('change', hideTutorial);
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
-    const media = window.matchMedia('(max-width: 760px)');
+    const media = window.matchMedia('(max-width: 767px)');
     const sync = () => setAvailabilityNarrow(media.matches);
     sync();
     media.addEventListener('change', sync);
@@ -822,7 +839,7 @@ export default function Workspace({
   const canEditTask = (task: Task) => canManageAllTasks || task.assignee === user?.id;
 
   function offerTutorialIfNeeded(seen?: boolean) {
-    if (seen || hasLocalTutorialSeen()) return;
+    if (seen || hasLocalTutorialSeen() || isPhoneLayout()) return;
     setTutorialPrompt(true);
   }
 
@@ -843,6 +860,7 @@ export default function Workspace({
   }
 
   function startTutorial() {
+    if (isPhoneLayout()) return;
     tutorialPromptStarting.current = true;
     setTutorialPrompt(false);
     setModal('');
@@ -3049,7 +3067,7 @@ export default function Workspace({
               </a>
             </div>
           )}
-          {tour !== null && (
+          {tour !== null && !phoneLayout && (
             <Tutorial
               step={tour}
               project={project}
@@ -3508,7 +3526,7 @@ export default function Workspace({
             <>
               <div className='toolbar'>
                 <Tabs value={filter} onValueChange={setFilter}>
-                  <TabsList className='bg-[#dbd9fc] task-filter-tabs'>
+                  <TabsList className='bg-[#dbd9fc] task-filter-tabs w-full max-w-full'>
                     <TabsTrigger value='active'>Active tasks</TabsTrigger>
                     <TabsTrigger value='all'>All tasks</TabsTrigger>
                     <TabsTrigger value='progress'>In progress</TabsTrigger>
@@ -3537,7 +3555,7 @@ export default function Workspace({
             <>
               <div className='toolbar'>
                 <Tabs value={milestoneFilter} onValueChange={setMilestoneFilter}>
-                  <TabsList className='bg-[#dbd9fc] task-filter-tabs'>
+                  <TabsList className='bg-[#dbd9fc] task-filter-tabs w-full max-w-full'>
                     <TabsTrigger value='all'>All milestones</TabsTrigger>
                     <TabsTrigger value='upcoming'>Upcoming</TabsTrigger>
                   </TabsList>
@@ -3665,10 +3683,7 @@ export default function Workspace({
                   />
                   Your hours
                 </span>
-                <span>
-                  <i className='availability-legend-overlap' aria-hidden='true'>★</i>
-                  Overlapping hours
-                </span>
+                <span>Faces show who is free</span>
                 {googleBusySlots.length > 0 ? (
                   <span className='availability-legend-busy'>
                     <i className='availability-legend-swatch busy' aria-hidden='true' />
@@ -3811,8 +3826,6 @@ export default function Workspace({
                         const selected = myAvailabilitySet.has(key);
                         const googleBusy = googleBusySet.has(key);
                         const freeHere = memberAvailability.filter((entry) => entry.slots.has(key));
-                        const isOverlap = !past && freeHere.length > 1;
-                        const teammatesHere = freeHere.filter((entry) => !entry.self);
                         const focusedEntry = availabilityFocusId
                           ? memberAvailability.find((entry) => entry.member.id === availabilityFocusId)
                           : undefined;
@@ -3820,16 +3833,14 @@ export default function Workspace({
                         const showSelf = availabilityFocusId
                           ? Boolean(focusedEntry?.self && focusedFree)
                           : selected;
-                        const visibleTeamColors = availabilityFocusId
-                          ? focusedEntry && !focusedEntry.self && focusedFree
-                            ? [focusedEntry.color]
+                        const shownPeople = availabilityFocusId
+                          ? focusedEntry && focusedFree
+                            ? [focusedEntry]
                             : []
-                          : teammatesHere.map((entry) => entry.color);
-                        const teamBackground =
-                          !past && visibleTeamColors.length > 0
-                            ? teammateSlotBackground(visibleTeamColors, Boolean(availabilityFocusId))
-                            : undefined;
-                        const showBusy = googleBusy && !showSelf && visibleTeamColors.length === 0;
+                          : freeHere;
+                        const faceOverflow = shownPeople.length > 4;
+                        const visiblePeople = shownPeople.slice(0, faceOverflow ? 3 : 4);
+                        const showBusy = googleBusy && visiblePeople.length === 0;
                         const freeLabel = freeHere.length
                           ? `${freeHere.map((entry) => memberLabel(entry.member)).join(', ')} free`
                           : 'No one free';
@@ -3843,26 +3854,14 @@ export default function Workspace({
                               selected ? ', your available hour' : ''
                             }${showBusy ? ', busy on Google Calendar' : ''}${
                               past ? ', time has passed' : ''
-                            }${isOverlap ? ', overlapping availability' : ''}`}
+                            }`}
                             aria-pressed={selected}
                             disabled={past}
                             title={past ? 'Time has passed' : showBusy ? 'Busy' : freeLabel}
-                            style={
-                              showSelf
-                                ? { background: selfColor }
-                                : teamBackground
-                                  ? { background: teamBackground }
-                                  : undefined
-                            }
                             className={
                               'slot' +
                               (showSelf ? ' selected' : '') +
                               (showBusy ? ' google-busy' : '') +
-                              (teamBackground && !showSelf ? ' team-marked' : '') +
-                              (showSelf && teammatesHere.length > 0 && !availabilityFocusId
-                                ? ' team-overlap'
-                                : '') +
-                              (isOverlap ? ' slot-overlap' : '') +
                               (availabilityFocusId && focusedFree && !focusedEntry?.self
                                 ? ' slot-focus'
                                 : '') +
@@ -3879,9 +3878,17 @@ export default function Workspace({
                               })
                             }
                           >
-                            {isOverlap ? (
-                              <span className='slot-overlap-star' aria-hidden='true'>
-                                ★
+                            {visiblePeople.length > 0 ? (
+                              <span className='slot-faces' aria-hidden='true'>
+                                {visiblePeople.map((entry) => (
+                                  <AvatarFace
+                                    key={entry.member.id}
+                                    name={memberLabel(entry.member)}
+                                    avatarUrl={entry.member.avatarUrl}
+                                    className={'avatar slot-face' + (entry.self ? ' mine' : '')}
+                                  />
+                                ))}
+                                {faceOverflow ? <span className='slot-face-more'>+</span> : null}
                               </span>
                             ) : past ? (
                               <LockKeyhole
@@ -3889,8 +3896,6 @@ export default function Workspace({
                                 className='availability-lock'
                                 aria-hidden='true'
                               />
-                            ) : showSelf ? (
-                              <Check size={14} aria-hidden='true' />
                             ) : showBusy ? (
                               <span className='slot-busy-label' aria-hidden='true'>
                                 Busy
@@ -4173,7 +4178,7 @@ export default function Workspace({
         </DialogContent>
       </Dialog>
       <Dialog
-        open={tutorialPrompt}
+        open={tutorialPrompt && !phoneLayout}
         onOpenChange={(open) => {
           if (open) return;
           if (tutorialPromptStarting.current) {
@@ -4831,7 +4836,7 @@ export default function Workspace({
                   {aiReady ? 'Update AI connection' : 'Connect AI'}
                 </button>
               )}
-              {modal === 'profile' && user && (
+              {modal === 'profile' && user && !phoneLayout && (
                 <button type='button' className='btn' onClick={startTutorial}>
                   Run Tutorial
                 </button>

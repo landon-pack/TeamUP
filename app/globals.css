@@ -1463,21 +1463,49 @@ button.member-row-button:focus-visible {
   outline-offset: -2px;
 }
 .slot.selected {
-  background: #5b54d9;
-  color: #fff;
+  background: #f7f5ff;
+  box-shadow: inset 0 0 0 2px #5b54d9;
+  color: #3f3aad;
 }
-.slot-overlap-star {
-  position: relative;
-  z-index: 1;
-  color: #fff;
-  font-size: 23px;
-  font-weight: 800;
-  line-height: 1;
-  text-shadow: 0 1px 4px rgba(35, 27, 83, 0.95), 0 0 3px rgba(35, 27, 83, 0.95);
+.slot-faces {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  max-width: 100%;
+  overflow: hidden;
   pointer-events: none;
 }
+.slot-face {
+  width: 16px;
+  height: 16px;
+  border-width: 1px;
+  font-size: 7px;
+  line-height: 1;
+}
+.slot-face.mine {
+  box-shadow: 0 0 0 1px #fff, 0 0 0 2px #5b54d9;
+}
+.slot-face-more {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #eceaf8;
+  color: #514bc7;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+}
+.schedule-single-day .slot-face,
+.schedule-single-day .slot-face-more {
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+}
 .slot.slot-focus {
-  color: #fff;
+  box-shadow: inset 0 0 0 2px #5b54d9;
 }
 .slot.slot-muted {
   opacity: 0.28;
@@ -2979,24 +3007,26 @@ body.tutorial-running .app-main {
 .toolbar [role="tablist"] {
   height: auto;
   flex-wrap: wrap;
+  justify-content: flex-start;
 }
 .toolbar {
   align-items: flex-start;
 }
 .task-filter-tabs {
-  gap: 8px;
+  gap: 4px;
+  width: 100%;
+  max-width: 100%;
 }
-.task-filter-tabs [data-slot='tabs-trigger'] + [data-slot='tabs-trigger'] {
-  border-left-color: transparent;
+.task-filter-tabs [data-slot='tabs-trigger'] {
+  flex: 1 1 auto;
+  min-height: 34px;
+  padding: 6px 12px;
 }
-.task-filter-tabs [data-slot='tabs-trigger'] + [data-slot='tabs-trigger']::before {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: -4.5px;
-  width: 1px;
-  background: #000;
-  content: '';
+@media (max-width: 767px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 /* =============================================================================
    Landing page (`/`) — styles for app/landing/*.tsx
@@ -3884,6 +3914,87 @@ body.tutorial-running .app-main {
   }
   body.tutorial-mobile .content {
     padding-bottom: calc(160px + env(safe-area-inset-bottom));
+  }
+  .availability-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .availability-toolbar,
+  .availability-people,
+  .availability-legend,
+  .availability-hour-controls,
+  .availability-best-times,
+  .availability-pending-bar,
+  .availability-empty,
+  .availability-overlap-subtitle {
+    margin-left: 12px;
+    margin-right: 12px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .availability-sync-button {
+    width: 100%;
+    margin-left: 0;
+    justify-content: center;
+  }
+  .availability-people {
+    width: auto;
+    min-width: 0;
+    padding-top: 12px;
+  }
+  .availability-day-chips {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    width: auto;
+    min-width: 0;
+    margin: 12px 12px 0;
+    padding: 4px;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #dbd9fc;
+  }
+  .availability-day-chip {
+    min-width: 0;
+    gap: 1px;
+    padding: 6px 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 10px;
+    line-height: 1.1;
+  }
+  .availability-day-chip strong {
+    font-size: 14px;
+  }
+  .availability-day-chip.selected {
+    background: #fff;
+    color: #514bc7;
+    box-shadow: 0 1px 2px #30276b1a;
+  }
+  .availability-hour-controls {
+    justify-content: stretch;
+  }
+  .availability-hour-toggle,
+  .availability-outside-chip {
+    width: 100%;
+    margin-right: 0;
+  }
+  .schedule {
+    min-width: 0;
+    grid-template-columns: var(--schedule-gutter) repeat(var(--schedule-day-count), minmax(0, 1fr));
+  }
+  .schedule .day,
+  .schedule .slot {
+    border-left-color: #e6e9f0;
+    border-top-color: #e6e9f0;
+  }
+  .schedule .day {
+    border-bottom-color: #e6e9f0;
+  }
+  .schedule::before,
+  .schedule::after {
+    background: #e6e9f0;
   }
 }
 
