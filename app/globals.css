@@ -1463,49 +1463,27 @@ button.member-row-button:focus-visible {
   outline-offset: -2px;
 }
 .slot.selected {
-  background: #f7f5ff;
-  box-shadow: inset 0 0 0 2px #5b54d9;
-  color: #3f3aad;
+  background: #5b54d9;
+  color: #fff;
 }
-.slot-faces {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  max-width: 100%;
-  overflow: hidden;
+.slot-overlap-star {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 4px rgba(35, 27, 83, 0.95), 0 0 3px rgba(35, 27, 83, 0.95);
   pointer-events: none;
 }
-.slot-face {
-  width: 16px;
-  height: 16px;
-  border-width: 1px;
-  font-size: 7px;
-  line-height: 1;
-}
-.slot-face.mine {
-  box-shadow: 0 0 0 1px #fff, 0 0 0 2px #5b54d9;
-}
-.slot-face-more {
-  display: inline-grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #eceaf8;
-  color: #514bc7;
-  font-size: 11px;
-  font-weight: 750;
-  line-height: 1;
-}
-.schedule-single-day .slot-face,
-.schedule-single-day .slot-face-more {
-  width: 22px;
-  height: 22px;
-  font-size: 9px;
-}
 .slot.slot-focus {
-  box-shadow: inset 0 0 0 2px #5b54d9;
+  color: #fff;
+}
+.availability-who {
+  margin: 8px 22px 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.45;
 }
 .slot.slot-muted {
   opacity: 0.28;
@@ -3926,7 +3904,8 @@ body.tutorial-running .app-main {
   .availability-best-times,
   .availability-pending-bar,
   .availability-empty,
-  .availability-overlap-subtitle {
+  .availability-overlap-subtitle,
+  .availability-who {
     margin-left: 12px;
     margin-right: 12px;
     padding-left: 0;
