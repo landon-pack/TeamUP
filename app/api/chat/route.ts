@@ -8,6 +8,7 @@ import {
 } from '@/lib/ai';
 import { clearMessages, conversation, readMessages } from '@/lib/conversations';
 import { readProject, replaceRows } from '@/lib/store';
+import { recordProjectActivity } from '@/lib/notifications';
 import { projectUpdateAllowed } from '@/lib/project-permissions';
 import { countAccomplishedMilestones, countNewRecords, creationStatements } from '@/lib/usage';
 import {
@@ -55,7 +56,7 @@ import {
   type BriefProposal,
   type ReminderProposal,
 } from '@/lib/chat-project-edits';
-import type { Milestone, Project, Task } from '@/lib/model';
+import { memberLabel, type Milestone, type Project, type Task } from '@/lib/model';
 
 type PendingProposal =
   | AvailabilityProposal
@@ -126,7 +127,15 @@ async function persistProject(project: Project, actorId: string, availabilityUse
   ];
   const results = await DB.batch(stmts);
   if (!results[0].meta.changes) throw new Error('CONFLICT');
-  return readProject(DB, project.id);
+  const saved = await readProject(DB, project.id);
+  await recordProjectActivity(
+    DB,
+    previous,
+    saved,
+    actorId,
+    memberLabel(saved.members.find((member) => member.id === actorId) || { name: 'A teammate' }),
+  );
+  return saved;
 }
 
 async function mergeAvailability(projectId: string, userId: string, slots: string[]) {

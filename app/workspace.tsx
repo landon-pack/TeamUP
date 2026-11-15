@@ -2853,6 +2853,13 @@ export default function Workspace({
                                 const target = projects.find((p) => p.id === n.projectId);
                                 if (target) selectProject(target);
                               }
+                              if (n.type === 'task_completed') {
+                                setFilter('done');
+                                setView('My tasks');
+                              } else if (n.type === 'milestone_completed') {
+                                setMilestoneFilter('all');
+                                setView('Milestones');
+                              }
                               setNotifOpen(false);
                             }}
                           >

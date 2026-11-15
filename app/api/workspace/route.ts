@@ -11,7 +11,7 @@ import {
   leaveProject,
   cleanupFiles,
 } from '@/lib/store';
-import { insertNotifications, taskActivityNotifications } from '@/lib/notifications';
+import { insertNotifications, recordProjectActivity } from '@/lib/notifications';
 import { avatarUrlFor } from '@/lib/avatar';
 import { availabilitySlotsError } from '@/lib/availability-calendar';
 import { AIError, complete } from '@/lib/ai';
@@ -473,17 +473,13 @@ export async function POST(req: Request) {
     const results = await DB.batch(stmts);
     if (!create && !results[0].meta.changes) throw new Error('CONFLICT');
     const saved = await readProject(DB, p.id);
-    try {
-      const activity = taskActivityNotifications(
-        previous || null,
-        saved,
-        u.userId,
-        memberLabel(saved.members.find((member) => member.id === u.userId) || { name: u.displayName }),
-      );
-      if (activity.length) await insertNotifications(DB, activity);
-    } catch (error) {
-      console.error('Project activity notifications failed', error);
-    }
+    await recordProjectActivity(
+      DB,
+      previous || null,
+      saved,
+      u.userId,
+      memberLabel(saved.members.find((member) => member.id === u.userId) || { name: u.displayName }),
+    );
     return Response.json({ project: saved });
   } catch (e) {
     return failure(e);

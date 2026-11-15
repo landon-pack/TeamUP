@@ -1,9 +1,10 @@
-import type { Project } from '@/lib/model';
+import { memberLabel, type Project } from '@/lib/model';
 
 export type NotificationType =
   | 'nudge'
   | 'task_created'
   | 'task_completed'
+  | 'milestone_completed'
   | 'project_invite'
   | 'invite_response'
   | 'member_left';
@@ -251,46 +252,107 @@ export async function clearNotifications(
   );
 }
 
+type ActivityItem = Parameters<typeof insertNotifications>[1][number];
+
+function notifyEach(
+  recipients: string[],
+  item: Omit<ActivityItem, 'userId'>,
+  into: ActivityItem[],
+) {
+  for (const userId of recipients) into.push({ ...item, userId });
+}
+
 export function taskActivityNotifications(
   previous: Project | null,
   next: Project,
   actorId: string,
   actorName: string,
 ) {
-  const prevById = new Map((previous?.tasks || []).map((t) => [t.id, t]));
+  const prevTasks = new Map((previous?.tasks || []).map((t) => [t.id, t]));
+  const prevMilestones = new Map((previous?.milestones || []).map((m) => [m.id, m]));
   const recipients = next.members.map((m) => m.id).filter((id) => id && id !== actorId);
-  if (!recipients.length) return [] as Parameters<typeof insertNotifications>[1];
+  if (!recipients.length) return [] as ActivityItem[];
 
-  const items: Parameters<typeof insertNotifications>[1] = [];
+  const completions: ActivityItem[] = [];
+  const created: ActivityItem[] = [];
   for (const task of next.tasks) {
-    const prior = prevById.get(task.id);
+    const prior = prevTasks.get(task.id);
     if (!prior) {
-      for (const userId of recipients) {
-        items.push({
-          userId,
+      notifyEach(
+        recipients,
+        {
           projectId: next.id,
           type: 'task_created',
           title: 'New task',
           body: `${actorName} added “${task.title}” to ${next.name}.`,
           meta: { taskId: task.id, actorId, actorName },
-        });
-      }
+        },
+        created,
+      );
       continue;
     }
     if (prior.status !== 'done' && task.status === 'done') {
-      for (const userId of recipients) {
-        items.push({
-          userId,
+      const assignee = next.members.find((member) => member.id === task.assignee);
+      const who = assignee ? memberLabel(assignee) : actorName;
+      const body =
+        !assignee || assignee.id === actorId
+          ? `${who} completed “${task.title}” on ${next.name}.`
+          : `${actorName} marked “${task.title}” complete on ${next.name}.`;
+      notifyEach(
+        recipients,
+        {
           projectId: next.id,
           type: 'task_completed',
           title: 'Task completed',
-          body: `${actorName} completed “${task.title}” on ${next.name}.`,
+          body,
           meta: { taskId: task.id, actorId, actorName },
-        });
-      }
+        },
+        completions,
+      );
     }
   }
-  return items.slice(0, 100);
+  for (const milestone of next.milestones) {
+    const prior = prevMilestones.get(milestone.id);
+    if (!prior || prior.done || !milestone.done) continue;
+    notifyEach(
+      recipients,
+      {
+        projectId: next.id,
+        type: 'milestone_completed',
+        title: 'Milestone hit',
+        body: `${actorName} hit “${milestone.title}” on ${next.name}.`,
+        meta: { milestoneId: milestone.id, actorId, actorName },
+      },
+      completions,
+    );
+  }
+  return [...completions, ...created].slice(0, 100);
+}
+
+/** Store task and milestone activity, skipping teammates who turned notifications off. */
+export async function recordProjectActivity(
+  db: D1Database,
+  previous: Project | null,
+  next: Project,
+  actorId: string,
+  actorName: string,
+) {
+  try {
+    const items = taskActivityNotifications(previous, next, actorId, actorName);
+    if (!items.length) return;
+    const ids = [...new Set(items.map((item) => item.userId))];
+    const optedOut = await db
+      .prepare(
+        `SELECT user_id FROM settings WHERE notifications=0 AND user_id IN (${ids.map(() => '?').join(',')})`,
+      )
+      .bind(...ids)
+      .all<{ user_id: string }>();
+    const blocked = new Set(optedOut.results.map((row) => row.user_id));
+    const allowed = items.filter((item) => !blocked.has(item.userId));
+    if (allowed.length) await insertNotifications(db, allowed);
+  } catch (error) {
+    console.error('Project activity notifications failed', error);
+  }
 }
 
 export function localTaskActivityNotifications(
