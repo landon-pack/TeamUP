@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Project } from '@/lib/model';
 
-const MOBILE_QUERY = '(max-width: 760px)';
+const MOBILE_QUERY = '(max-width: 767px)';
 
 function useIsMobile() {
   const [mobile, setMobile] = useState(false);
@@ -142,7 +142,11 @@ export default function Tutorial({
     current.ready &&
     clickedTarget === (current.modalTarget || current.target);
   const needsNavigation = !!current.nav && view !== current.nav && navConfirmedFor !== step;
-  const phase = mobile && needsNavigation && mobileMenuOpenedFor !== step
+  const tabLabel =
+    current.nav === 'My tasks' ? 'Tasks' : current.nav === 'Team' ? 'Team' : current.nav === 'Overview' ? 'Overview' : '';
+  const openMenuForProjects =
+    mobile && current.target === 'create-project' && mobileMenuOpenedFor !== step;
+  const phase = openMenuForProjects || (mobile && needsNavigation && !tabLabel && mobileMenuOpenedFor !== step)
     ? 'menu'
     : needsNavigation
     ? 'navigation'
@@ -152,10 +156,14 @@ export default function Tutorial({
         ? 'complete'
         : 'action';
   const body =
-    phase === 'menu'
-      ? `Open the hamburger menu, then choose “${current.nav}.” We’ll highlight that page next.`
+    phase === 'menu' && current.target === 'create-project'
+      ? 'Tap Menu at the bottom of the screen, then choose “New project.”'
+      : phase === 'menu'
+      ? `Tap Menu at the bottom, then choose “${current.nav}.” We’ll highlight that page next.`
+      : phase === 'navigation' && mobile && tabLabel
+      ? `Tap “${tabLabel}” at the bottom of the screen.`
       : phase === 'navigation'
-      ? `Choose “${current.nav}” from the hamburger menu. We’ll point out the next control when you get there.`
+      ? `Choose “${current.nav}” from the menu. We’ll point out the next control when you get there.`
       : phase === 'modal'
         ? current.modalText || 'Complete this form to continue.'
         : phase === 'complete'
@@ -195,7 +203,9 @@ export default function Tutorial({
 
   useEffect(() => {
     const selector = phase === 'navigation'
-      ? `[data-tutorial-nav="${current.nav}"]`
+      ? mobile && tabLabel
+        ? `[data-tutorial-tab="${current.nav}"]`
+        : `[data-tutorial-nav="${current.nav}"]`
       : phase === 'menu'
         ? '[data-tutorial-menu-trigger]'
       : phase === 'modal'
@@ -211,7 +221,7 @@ export default function Tutorial({
         .querySelectorAll('.tutorial-focus')
         .forEach((node) => node.classList.remove('tutorial-focus'));
     };
-  }, [step, phase, current.nav, current.target, current.modalTarget, mobile]);
+  }, [step, phase, current.nav, current.target, current.modalTarget, mobile, tabLabel]);
 
   useEffect(() => {
     if (!mobile || !current.nav) return;
@@ -251,12 +261,16 @@ export default function Tutorial({
 
   useEffect(() => {
     if (!current.nav) return;
-    const target = document.querySelector(`[data-tutorial-nav="${current.nav}"]`);
+    const target = document.querySelector(
+      mobile && tabLabel
+        ? `[data-tutorial-tab="${current.nav}"]`
+        : `[data-tutorial-nav="${current.nav}"]`,
+    );
     if (!(target instanceof HTMLElement)) return;
     const confirmNavigation = () => setNavConfirmedFor(step);
     target.addEventListener('click', confirmNavigation);
     return () => target.removeEventListener('click', confirmNavigation);
-  }, [step, current.nav, mobileMenuOpenedFor]);
+  }, [step, current.nav, mobile, tabLabel, mobileMenuOpenedFor]);
 
   useEffect(() => {
     function keepInBounds() {
@@ -431,7 +445,7 @@ export default function Tutorial({
         </div>
         <p className='tutorial-drag-hint'>
           {mobile
-            ? 'Drag the handle to move this panel. Follow the hamburger menu highlight, then tap the page highlight.'
+            ? 'Drag the handle to move this panel. Follow the highlight along the bottom of the screen.'
             : 'Drag the handle to move this panel anywhere on the screen.'}
         </p>
         <h2>{current.title}</h2>
@@ -450,7 +464,7 @@ export default function Tutorial({
             className='btn subtle'
             onClick={() => {
               if (phase === 'menu') focusTutorialStep('[data-tutorial-menu-trigger]');
-              else if (phase === 'navigation') focusTutorialStep(`[data-tutorial-nav="${current.nav}"]`);
+              else if (phase === 'navigation') focusTutorialStep(mobile && tabLabel ? `[data-tutorial-tab="${current.nav}"]` : `[data-tutorial-nav="${current.nav}"]`);
               else if (phase === 'modal') focusTutorialStep(`[data-tutorial-target="${current.modalTarget}"]`);
               else if (phase === 'action' && current.target) focusTutorialStep(`[data-tutorial-target="${current.target}"]`);
               if (mobile) setMobilePhase('practice');

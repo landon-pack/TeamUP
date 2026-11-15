@@ -47,6 +47,7 @@ import {
   ArrowRight,
   CircleHelp,
   LockKeyhole,
+  Menu,
   Send,
 } from 'lucide-react';
 import {
@@ -59,6 +60,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import {
   Dialog,
@@ -119,6 +121,71 @@ const nav = [
   ['Files', FolderOpen],
   ['Team', Users],
 ] as const;
+
+const MOBILE_TABS = [
+  { id: 'Overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'My tasks', label: 'Tasks', icon: CheckSquare },
+  { id: 'Team', label: 'Team', icon: Users },
+] as const;
+
+function MobileTabBar({
+  view,
+  pendingInvites,
+  onView,
+}: {
+  view: string;
+  pendingInvites: number;
+  onView: (name: string) => void;
+}) {
+  const { openMobile, setOpenMobile, toggleSidebar } = useSidebar();
+  useEffect(() => {
+    function closeAfterNav(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest('.sidebar-nav-close')) return;
+      setOpenMobile(false);
+    }
+    document.addEventListener('click', closeAfterNav);
+    return () => document.removeEventListener('click', closeAfterNav);
+  }, [setOpenMobile]);
+  const onPrimaryTab = MOBILE_TABS.some((tab) => tab.id === view);
+  const menuActive = openMobile || !onPrimaryTab;
+  return (
+    <nav className='mobile-tab-bar' aria-label='Workspace'>
+      {MOBILE_TABS.map(({ id, label, icon: Icon }) => {
+        const active = view === id && !openMobile;
+        return (
+          <button
+            key={id}
+            type='button'
+            className={'mobile-tab' + (active ? ' active' : '')}
+            data-tutorial-tab={id}
+            data-tutorial-nav={id}
+            aria-current={active ? 'page' : undefined}
+            onClick={() => {
+              setOpenMobile(false);
+              onView(id);
+            }}
+          >
+            <Icon size={22} aria-hidden />
+            {label}
+          </button>
+        );
+      })}
+      <button
+        type='button'
+        className={'mobile-tab' + (menuActive ? ' active' : '')}
+        data-tutorial-menu-trigger
+        aria-expanded={openMobile}
+        aria-label={pendingInvites ? `Menu, ${pendingInvites} pending invites` : 'Menu'}
+        onClick={() => toggleSidebar()}
+      >
+        <Menu size={22} aria-hidden />
+        Menu
+        {pendingInvites > 0 ? <span className='mobile-tab-dot' /> : null}
+      </button>
+    </nav>
+  );
+}
 const PAGE_HELP: Record<string, { description: string; tips: string[] }> = {
   Overview: {
     description: 'A snapshot of your project and the work that needs attention.',
@@ -2598,7 +2665,7 @@ export default function Workspace({
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
-                className='h-10 px-3 text-[14px]'
+                className='sidebar-nav-close h-10 px-3 text-[14px]'
                 isActive={view === 'Invites'}
                 onClick={() => setView('Invites')}
               >
@@ -2620,7 +2687,7 @@ export default function Workspace({
             {nav.map(([name, Icon]) => (
               <SidebarMenuItem key={name}>
                 <SidebarMenuButton
-                  className='h-10 px-3 text-[14px]'
+                  className='sidebar-nav-close h-10 px-3 text-[14px]'
                   data-tutorial-nav={name}
                   isActive={view === name}
                   onClick={() => {
@@ -2658,7 +2725,7 @@ export default function Workspace({
                 <button
                   type='button'
                   title={p.name}
-                  className='project-option'
+                  className='project-option sidebar-nav-close'
                   onClick={() => {
                     selectProject(p);
                     setError('');
@@ -2712,7 +2779,7 @@ export default function Workspace({
           ) : (
             <p className='project-option muted'>No projects yet</p>
           )}
-          <button className='project-option' data-tutorial-target='create-project' onClick={() => open('project', { due: future(14) })}>
+          <button className='project-option sidebar-nav-close' data-tutorial-target='create-project' onClick={() => open('project', { due: future(14) })}>
             ＋ &nbsp; New project
           </button>
         </SidebarContent>
@@ -2746,7 +2813,7 @@ export default function Workspace({
         <header className='topbar'>
           <div className='flex gap-3 items-center'>
             {/* Sidebar toggle for mobile, tablet, and desktop layouts. */}
-            <SidebarTrigger className='mobile-sidebar-trigger' data-tutorial-menu-trigger />
+            <SidebarTrigger className='mobile-sidebar-trigger' />
             <span className='mobile-title'>TeamUP.</span>
           </div>
           <div className='top-actions'>
@@ -5297,6 +5364,15 @@ export default function Workspace({
         }}
       />
       <Toaster position='top-center' richColors closeButton />
+      <MobileTabBar
+        view={view}
+        pendingInvites={pendingInvites.length}
+        onView={(name) => {
+          setView(name);
+          if (name === 'My tasks') setFilter('active');
+          if (name === 'Milestones') setMilestoneFilter('all');
+        }}
+      />
     </SidebarProvider>
   );
 }

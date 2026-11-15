@@ -135,6 +135,9 @@ a:focus-visible {
 .mobile-sidebar-trigger {
   display: inline-flex;
 }
+.mobile-tab-bar {
+  display: none;
+}
 @media (min-width: 1200px) and (hover: hover) and (pointer: fine) {
   .mobile-sidebar-trigger {
     display: none;
@@ -2860,7 +2863,7 @@ body.tutorial-running .app-main {
   outline-offset: 4px;
   border-radius: 12px;
 }
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .tutorial-card.mobile {
     left: 12px;
     right: 12px;
@@ -3821,6 +3824,66 @@ body.tutorial-running .app-main {
   .admin-top {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 767px) {
+  .mobile-sidebar-trigger {
+    display: none;
+  }
+  .mobile-tab-bar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    background: #fff;
+    border-top: 1px solid #e6e9f1;
+    padding: 4px 6px calc(4px + env(safe-area-inset-bottom));
+  }
+  .mobile-tab {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 52px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #8b93a3;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.1;
+  }
+  .mobile-tab.active {
+    color: #514bc7;
+  }
+  .mobile-tab:focus-visible {
+    outline: 2px solid #6352bb;
+    outline-offset: 2px;
+  }
+  .mobile-tab-dot {
+    position: absolute;
+    top: 8px;
+    left: calc(50% + 8px);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #5b54d9;
+  }
+  .content {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+  .tutorial-card.mobile,
+  .tutorial-mobile-chip {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+  body.tutorial-mobile .content {
+    padding-bottom: calc(160px + env(safe-area-inset-bottom));
   }
 }
 
