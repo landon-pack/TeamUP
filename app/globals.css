@@ -1214,7 +1214,7 @@ button.member-row-button:focus-visible {
   box-shadow: inset 0 0 0 2px #5b54d9;
 }
 .availability-legend-swatch.past {
-  background: #f7f8fa;
+  background: #e8eaef;
 }
 .availability-pending-bar {
   display: flex;
@@ -1519,7 +1519,8 @@ button.member-row-button:focus-visible {
   box-shadow: inset 0 0 0 2px #fff;
 }
 .slot.past {
-  background: #f7f8fa;
+  background: #e8eaef;
+  color: #667085;
   opacity: 1;
   cursor: default;
 }
@@ -1528,10 +1529,7 @@ button.member-row-button:focus-visible {
   cursor: default;
 }
 .slot.past .availability-lock {
-  color: #6251df;
-}
-.slot.past.selected .availability-lock {
-  color: #dbd9fc;
+  color: #667085;
 }
 .time {
   position: relative;

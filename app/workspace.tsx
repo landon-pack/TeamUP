@@ -3874,25 +3874,33 @@ export default function Workspace({
                             disabled={past}
                             title={past ? 'Time has passed' : showBusy ? 'Busy' : freeLabel}
                             style={
-                              showSelf
-                                ? { background: selfColor }
-                                : teamBackground
-                                  ? { background: teamBackground }
-                                  : undefined
+                              past
+                                ? undefined
+                                : showSelf
+                                  ? { background: selfColor }
+                                  : teamBackground
+                                    ? { background: teamBackground }
+                                    : undefined
                             }
                             className={
                               'slot' +
-                              (showSelf ? ' selected' : '') +
-                              (showBusy ? ' google-busy' : '') +
-                              (teamBackground && !showSelf ? ' team-marked' : '') +
-                              (showSelf && teammatesHere.length > 0 && !availabilityFocusId
+                              (!past && showSelf ? ' selected' : '') +
+                              (!past && showBusy ? ' google-busy' : '') +
+                              (!past && teamBackground && !showSelf ? ' team-marked' : '') +
+                              (!past &&
+                              showSelf &&
+                              teammatesHere.length > 0 &&
+                              !availabilityFocusId
                                 ? ' team-overlap'
                                 : '') +
                               (isOverlap ? ' slot-overlap' : '') +
-                              (availabilityFocusId && focusedFree && !focusedEntry?.self
+                              (!past &&
+                              availabilityFocusId &&
+                              focusedFree &&
+                              !focusedEntry?.self
                                 ? ' slot-focus'
                                 : '') +
-                              (availabilityFocusId && !focusedFree ? ' slot-muted' : '') +
+                              (!past && availabilityFocusId && !focusedFree ? ' slot-muted' : '') +
                               (past ? ' past' : ' slot-paintable')
                             }
                             onPointerDown={(event) =>
