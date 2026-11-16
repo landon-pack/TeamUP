@@ -12,6 +12,26 @@ export class AIError extends Error {
   }
 }
 export const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+const GEMINI_MODELS = [GEMINI_MODEL, 'gemini-3.8-flash'];
+
+function geminiFailure(status: number) {
+  if (status === 429)
+    return new AIError(
+      'Gemini’s usage limit has been reached. Wait and try again, or check your free-tier quota in Google AI Studio.',
+      429,
+    );
+  if ([400, 401, 403].includes(status))
+    return new AIError(
+      'Gemini rejected this request. Check that the API key is valid, the Gemini API is enabled, and the model is available for your Google project.',
+      503,
+    );
+  if (status === 404)
+    return new AIError(
+      'The configured Gemini model is unavailable. The site owner needs to update the model.',
+      503,
+    );
+  return new AIError('Gemini is temporarily unavailable. Please try again.');
+}
 
 async function generateGemini(
   system: string,
@@ -22,51 +42,51 @@ async function generateGemini(
 ) {
   const key = providedKey || (await geminiKey());
   if (!key) throw new AIError('Connect Gemini in your account settings to start using AI.', 503);
-  let response: Response;
-  try {
-    response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/' +
-        GEMINI_MODEL +
-        ':generateContent',
-      {
-        method: 'POST',
-        signal: AbortSignal.timeout(timeoutMs),
-        headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system || 'Be helpful and concise.' }] },
-          contents,
-          generationConfig: {
-            maxOutputTokens: json ? 5000 : 2200,
-            ...(json ? { responseMimeType: 'application/json' } : {}),
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: system || 'Be helpful and concise.' }] },
+    contents,
+    generationConfig: {
+      maxOutputTokens: json ? 5000 : 2200,
+      ...(json ? { responseMimeType: 'application/json' } : {}),
+    },
+  });
+  let response: Response | null = null;
+  let lastStatus = 503;
+  for (const model of GEMINI_MODELS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 1200));
+      try {
+        response = await fetch(
+          'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent',
+          {
+            method: 'POST',
+            signal: AbortSignal.timeout(timeoutMs),
+            headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+            body,
           },
-        }),
-      },
-    );
-  } catch {
+        );
+      } catch {
+        response = null;
+        lastStatus = 504;
+        continue;
+      }
+      if (response.ok) break;
+      lastStatus = response.status;
+      console.error('Gemini request failed', { model, status: response.status, attempt });
+      if (response.status === 404) break;
+      if (response.status === 400 || response.status === 401 || response.status === 403) {
+        throw geminiFailure(response.status);
+      }
+    }
+    if (response?.ok) break;
+  }
+  if (!response) {
     throw new AIError(
       'Gemini could not connect in time. Your question is still here; please try again.',
       504,
     );
   }
-  if (!response.ok) {
-    console.error('Gemini request failed', { status: response.status });
-    if (response.status === 429)
-      throw new AIError(
-        'Gemini’s usage limit has been reached. Wait and try again, or check your free-tier quota in Google AI Studio.',
-        429,
-      );
-    if ([400, 401, 403].includes(response.status))
-      throw new AIError(
-        'Gemini rejected this request. Check that the API key is valid, the Gemini API is enabled, and the model is available for your Google project.',
-        503,
-      );
-    if (response.status === 404)
-      throw new AIError(
-        'The configured Gemini model is unavailable. The site owner needs to update the model.',
-        503,
-      );
-    throw new AIError('Gemini is temporarily unavailable. Please try again.');
-  }
+  if (!response.ok) throw geminiFailure(lastStatus);
   const data = (await response.json()) as {
     candidates?: {
       finishReason: string;
