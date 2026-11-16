@@ -3228,25 +3228,6 @@ export default function Workspace({
                     Sign in to get started
                   </a>
                 ))}
-              {!loading && !localOnly && (
-                <a
-                  className='btn'
-                  href='/demo/overview'
-                  onClick={(e) => {
-                    e.preventDefault();
-                    try {
-                      window.sessionStorage.removeItem(DEMO_SESSION_KEY);
-                      window.sessionStorage.removeItem(startupNoticeKey);
-                      window.sessionStorage.removeItem(WORKSPACE_VIEW_KEY);
-                    } catch {
-                      // Ignore unavailable browser storage.
-                    }
-                    window.location.assign('/demo/overview');
-                  }}
-                >
-                  Try demo — no sign-in needed
-                </a>
-              )}
               {!loading && user && (
                 <small>
                   Already added to a team? Make sure you signed in with the email they used.
