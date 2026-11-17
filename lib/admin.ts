@@ -446,6 +446,14 @@ export async function deleteAdminAccount(
   return { ok: true as const };
 }
 
+/** Someone on a project the admin is maintaining. */
+export type AdminRecordMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: 'owner' | 'member';
+};
+
 /** A project row the admin can maintain. Creation totals stay on the project and are not edited here. */
 export type AdminRecord = {
   id: string;
@@ -455,7 +463,9 @@ export type AdminRecord = {
   description: string;
   tasksCreated: number;
   milestonesCreated: number;
+  ownerId: string;
   ownerEmail: string;
+  members: AdminRecordMember[];
   version: number;
 };
 
@@ -475,12 +485,79 @@ function recordInput(input: { title?: unknown; course?: unknown; deadline?: unkn
   return { ok: true as const, title, course, description, deadline };
 }
 
-/** Read every project, including the lifetime task and milestone counts. */
+const MEMBER_COLORS = ['#5b54d9', '#0f766e', '#b45309', '#be123c', '#1d4ed8', '#7c3aed', '#047857', '#c2410c'];
+
+type TeamInput = {
+  ownerId?: unknown;
+  memberIds?: unknown;
+};
+
+/** Owner plus the other accounts that should belong to the project. */
+async function checkedTeam(db: D1Database, input: TeamInput) {
+  const ownerId = typeof input.ownerId === 'string' ? input.ownerId : '';
+  const memberIds = Array.isArray(input.memberIds)
+    ? [...new Set(input.memberIds.filter((id): id is string => typeof id === 'string' && id.length > 0 && id !== ownerId))]
+    : [];
+  if (!ownerId) return { ok: false as const, error: 'Choose a project owner.' };
+  const ids = [ownerId, ...memberIds];
+  const found = await db
+    .prepare(`SELECT id FROM users WHERE id IN (${ids.map(() => '?').join(',')})`)
+    .bind(...ids)
+    .all<{ id: string }>();
+  if ((found.results || []).length !== ids.length) {
+    return { ok: false as const, error: 'Choose accounts that already exist.' };
+  }
+  return { ok: true as const, ownerId, memberIds };
+}
+
+/** Replace the project team. Removed people lose the project; their accounts stay. */
+function teamStatements(
+  db: D1Database,
+  projectId: string,
+  groupId: string,
+  ownerId: string,
+  memberIds: string[],
+  current: { user_id: string; color: string | null }[],
+) {
+  const wanted = [ownerId, ...memberIds];
+  const keep = new Set(wanted);
+  const colorByUser = new Map(current.map((row) => [row.user_id, row.color]));
+  const used = new Set([...colorByUser.values()].filter((color): color is string => !!color));
+  const statements: D1PreparedStatement[] = [];
+  for (const row of current) {
+    if (keep.has(row.user_id)) continue;
+    statements.push(
+      db.prepare('UPDATE tasks SET assigned_user_id=NULL WHERE project_id=? AND assigned_user_id=?').bind(projectId, row.user_id),
+      db.prepare('DELETE FROM availability WHERE project_id=? AND user_id=?').bind(projectId, row.user_id),
+      db.prepare('DELETE FROM group_members WHERE group_id=? AND user_id=?').bind(groupId, row.user_id),
+    );
+  }
+  wanted.forEach((userId, index) => {
+    let color = colorByUser.get(userId) || '';
+    if (!color) {
+      color = MEMBER_COLORS.find((entry) => !used.has(entry)) || MEMBER_COLORS[index % MEMBER_COLORS.length];
+      used.add(color);
+    }
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO group_members(group_id, user_id, role, color) VALUES(?, ?, ?, ?)
+           ON CONFLICT(group_id, user_id) DO UPDATE SET role=excluded.role`,
+        )
+        .bind(groupId, userId, userId === ownerId ? 'owner' : 'member', color),
+      db.prepare('INSERT OR IGNORE INTO settings(user_id) VALUES(?)').bind(userId),
+    );
+  });
+  return statements;
+}
+
+/** Read every project, including who owns it, who else belongs, and the lifetime counts. */
 export async function listAdminRecords(db: D1Database) {
   const rows = await db
     .prepare(
-      `SELECT p.id, p.title, p.course, p.deadline, p.description, p.version,
-              p.tasks_created, p.milestones_created, coalesce(u.email, '') AS owner_email
+      `SELECT p.id, p.title, p.course, p.deadline, p.description, p.version, p.group_id, p.owner,
+              p.tasks_created, p.milestones_created, coalesce(u.email, '') AS owner_email,
+              coalesce(u.id, '') AS owner_user_id
        FROM projects p
        LEFT JOIN users u ON u.id = p.owner
        ORDER BY p.deadline, p.title COLLATE NOCASE`,
@@ -492,12 +569,35 @@ export async function listAdminRecords(db: D1Database) {
       deadline: string;
       description: string;
       version: number;
+      group_id: string | null;
+      owner: string;
       tasks_created: number;
       milestones_created: number;
       owner_email: string;
+      owner_user_id: string;
     }>();
-  return (rows.results || []).map(
-    (row): AdminRecord => ({
+  const membership = await db
+    .prepare(
+      `SELECT g.group_id, g.user_id, g.role, u.name, u.email
+       FROM group_members g
+       JOIN users u ON u.id = g.user_id`,
+    )
+    .all<{ group_id: string; user_id: string; role: string; name: string; email: string }>();
+  const byGroup = new Map<string, AdminRecordMember[]>();
+  for (const row of membership.results || []) {
+    const list = byGroup.get(row.group_id) || [];
+    list.push({
+      id: row.user_id,
+      name: row.name,
+      email: row.email,
+      role: row.role === 'owner' ? 'owner' : 'member',
+    });
+    byGroup.set(row.group_id, list);
+  }
+  return (rows.results || []).map((row): AdminRecord => {
+    const members = row.group_id ? byGroup.get(row.group_id) || [] : [];
+    members.sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === 'owner' ? -1 : 1));
+    return {
       id: row.id,
       title: row.title,
       course: row.course,
@@ -505,23 +605,26 @@ export async function listAdminRecords(db: D1Database) {
       description: row.description,
       tasksCreated: row.tasks_created,
       milestonesCreated: row.milestones_created,
+      ownerId: row.owner_user_id || row.owner,
       ownerEmail: row.owner_email,
+      members,
       version: row.version,
-    }),
-  );
+    };
+  });
 }
 
 /**
- * Create one project for the signed-in admin.
+ * Create one project for the chosen owner and the other selected accounts.
  * Site and owner project totals go up by one. Task and milestone totals start at zero.
  */
 export async function createAdminRecord(
   db: D1Database,
-  ownerId: string,
-  input: { title?: unknown; course?: unknown; deadline?: unknown; description?: unknown },
+  input: TeamInput & { title?: unknown; course?: unknown; deadline?: unknown; description?: unknown },
 ) {
   const fields = recordInput(input);
   if (!fields.ok) return fields;
+  const team = await checkedTeam(db, input);
+  if (!team.ok) return team;
   const id = crypto.randomUUID();
   const groupId = 'group:' + id;
   const token = crypto.randomUUID();
@@ -534,38 +637,62 @@ export async function createAdminRecord(
            reminder_hours, normalized, write_token, tasks_created, milestones_created
          ) VALUES(?, ?, '{}', 1, ?, ?, ?, ?, ?, 24, 1, ?, 0, 0)`,
       )
-      .bind(id, ownerId, groupId, fields.title, fields.description, fields.course, fields.deadline, token),
-    db
-      .prepare('INSERT INTO group_members(group_id, user_id, role, color) VALUES(?, ?, ?, ?)')
-      .bind(groupId, ownerId, 'owner', '#5b54d9'),
-    ...projectCreatedStatements(db, ownerId, id, token),
+      .bind(
+        id,
+        team.ownerId,
+        groupId,
+        fields.title,
+        fields.description,
+        fields.course,
+        fields.deadline,
+        token,
+      ),
+    ...teamStatements(db, id, groupId, team.ownerId, team.memberIds, []),
+    ...projectCreatedStatements(db, team.ownerId, id, token),
   ]);
   return { ok: true as const, id };
 }
 
-/** Change the project text only. Lifetime task, milestone, and project counts stay as they are. */
+/**
+ * Change the project text, owner, and members.
+ * Lifetime task, milestone, and project counts stay as they are.
+ */
 export async function updateAdminRecord(
   db: D1Database,
   id: string,
-  input: { title?: unknown; course?: unknown; deadline?: unknown; description?: unknown },
+  input: TeamInput & { title?: unknown; course?: unknown; deadline?: unknown; description?: unknown },
 ) {
   const fields = recordInput(input);
   if (!fields.ok) return fields;
+  const team = await checkedTeam(db, input);
+  if (!team.ok) return team;
   const current = await db
     .prepare('SELECT group_id FROM projects WHERE id=?')
     .bind(id)
     .first<{ group_id: string | null }>();
   if (!current) return { ok: false as const, error: 'That project was not found.' };
-  const statements = [
+  const groupId = current.group_id || 'group:' + id;
+  const existingMembers = current.group_id
+    ? (
+        await db
+          .prepare('SELECT user_id, color FROM group_members WHERE group_id=?')
+          .bind(current.group_id)
+          .all<{ user_id: string; color: string | null }>()
+      ).results || []
+    : [];
+  const statements: D1PreparedStatement[] = [];
+  if (!current.group_id) {
+    statements.push(db.prepare('INSERT INTO groups(id, name) VALUES(?, ?)').bind(groupId, fields.title));
+  }
+  statements.push(
     db
       .prepare(
-        'UPDATE projects SET title=?, description=?, course=?, deadline=?, version=version+1 WHERE id=?',
+        'UPDATE projects SET title=?, description=?, course=?, deadline=?, owner=?, group_id=?, version=version+1 WHERE id=?',
       )
-      .bind(fields.title, fields.description, fields.course, fields.deadline, id),
-  ];
-  if (current.group_id) {
-    statements.push(db.prepare('UPDATE groups SET name=? WHERE id=?').bind(fields.title, current.group_id));
-  }
+      .bind(fields.title, fields.description, fields.course, fields.deadline, team.ownerId, groupId, id),
+    db.prepare('UPDATE groups SET name=? WHERE id=?').bind(fields.title, groupId),
+    ...teamStatements(db, id, groupId, team.ownerId, team.memberIds, existingMembers),
+  );
   await db.batch(statements);
   return { ok: true as const };
 }

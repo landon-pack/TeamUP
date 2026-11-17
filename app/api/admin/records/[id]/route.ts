@@ -17,6 +17,8 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
       course?: string;
       deadline?: string;
       description?: string;
+      ownerId?: string;
+      memberIds?: string[];
     };
     const updated = await updateAdminRecord(access.db, id, body);
     if (!updated.ok) {

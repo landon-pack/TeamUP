@@ -3693,6 +3693,83 @@ body.tutorial-running .app-main {
 .admin-records .admin-table tbody tr {
   cursor: default;
 }
+.admin-person-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-person-field {
+  position: relative;
+}
+.admin-person-search > label {
+  font-size: 13px;
+  font-weight: 650;
+}
+.admin-person-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-person-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 999px;
+  background: #f3f1ff;
+  color: #3f3aad;
+  font-size: 13px;
+  font-weight: 650;
+}
+.admin-person-chip button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #5b54d9;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.admin-person-results {
+  position: absolute;
+  z-index: 3;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid #dce1eb;
+  border-radius: 8px;
+  background: #fff;
+  max-height: 220px;
+  overflow: auto;
+  box-shadow: 0 10px 24px #222b4024;
+}
+.admin-person-results button {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.admin-person-results button:hover {
+  background: #f6f4ff;
+}
+.admin-person-results span,
+.admin-person-empty {
+  color: #667085;
+  font-weight: 500;
+}
+.admin-person-empty {
+  padding: 8px 10px;
+}
 .admin-toolbar label {
   display: flex;
   flex-direction: column;

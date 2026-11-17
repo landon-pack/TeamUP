@@ -4,7 +4,7 @@
  * Admin page.
  *
  * The login form is visible until an admin session cookie exists.
- * Maintain Users, Maintain Records, and Logout stay hidden until that login succeeds.
+ * Maintain Users, Maintain Projects, and Logout stay hidden until that login succeeds.
  * Logout calls /api/auth/signout, which clears the session cookie and returns here.
  * The totals above the tables (projects, accounts, active today, tasks, milestones)
  * stay on screen after login. Deleting a user or project does not reduce those totals.
@@ -55,6 +55,13 @@ type Draft = {
   admin: boolean;
 };
 
+type ProjectMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: 'owner' | 'member';
+};
+
 type ProjectRecord = {
   id: string;
   title: string;
@@ -63,7 +70,9 @@ type ProjectRecord = {
   description: string;
   tasksCreated: number;
   milestonesCreated: number;
+  ownerId: string;
   ownerEmail: string;
+  members: ProjectMember[];
 };
 
 type RecordDraft = {
@@ -71,6 +80,8 @@ type RecordDraft = {
   course: string;
   deadline: string;
   description: string;
+  ownerId: string;
+  memberIds: string[];
 };
 
 const emptyDraft = (): Draft => ({
@@ -82,12 +93,20 @@ const emptyDraft = (): Draft => ({
   admin: false,
 });
 
-const emptyRecordDraft = (): RecordDraft => ({
+const emptyRecordDraft = (ownerId = ''): RecordDraft => ({
   title: '',
   course: '',
   deadline: '',
   description: '',
+  ownerId,
+  memberIds: [],
 });
+
+function accountMatches(account: { name: string; email: string; username: string }, query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return false;
+  return [account.name, account.email, account.username].join(' ').toLowerCase().includes(needle);
+}
 
 function formatWhen(value: string | null) {
   if (!value) return 'Never';
@@ -137,13 +156,16 @@ export default function AdminConsole() {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [detailVersion, setDetailVersion] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Account | null>(null);
-  const [panel, setPanel] = useState<'users' | 'records' | null>(null);
+  const [panel, setPanel] = useState<'users' | 'projects' | null>(null);
   const [records, setRecords] = useState<ProjectRecord[]>([]);
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [recordEditor, setRecordEditor] = useState<
     null | { mode: 'create' } | { mode: 'edit'; record: ProjectRecord }
   >(null);
   const [recordDraft, setRecordDraft] = useState<RecordDraft>(emptyRecordDraft);
+  const [ownerQuery, setOwnerQuery] = useState('');
+  const [memberQuery, setMemberQuery] = useState('');
+  const [activeSearch, setActiveSearch] = useState<'owner' | 'members' | null>(null);
   const [pendingRecordDelete, setPendingRecordDelete] = useState<ProjectRecord | null>(null);
   const detailRowRef = useRef<HTMLTableRowElement | null>(null);
 
@@ -325,7 +347,11 @@ export default function AdminConsole() {
       const response = await fetch('/api/admin/records', { cache: 'no-store', credentials: 'same-origin' });
       const data = (await response.json().catch(() => ({}))) as { error?: string; records?: ProjectRecord[] };
       if (!response.ok) throw new Error(data.error || 'Unable to load projects.');
-      setRecords(Array.isArray(data.records) ? data.records : []);
+      setRecords(
+        Array.isArray(data.records)
+          ? data.records.map((record) => ({ ...record, members: record.members || [] }))
+          : [],
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load projects.');
     } finally {
@@ -342,25 +368,33 @@ export default function AdminConsole() {
   function openRecords() {
     setEditor(null);
     setPendingDelete(null);
-    setPanel((current) => (current === 'records' ? null : 'records'));
+    setPanel((current) => (current === 'projects' ? null : 'projects'));
   }
 
   useEffect(() => {
-    if (panel === 'records') void loadRecords();
+    if (panel === 'projects') void loadRecords();
   }, [panel]);
 
   function openRecordCreate() {
-    setRecordDraft(emptyRecordDraft());
+    setRecordDraft(emptyRecordDraft(overview?.viewerId || ''));
+    setOwnerQuery('');
+    setMemberQuery('');
+    setActiveSearch(null);
     setError(null);
     setRecordEditor({ mode: 'create' });
   }
 
   function openRecordEdit(record: ProjectRecord) {
+    setOwnerQuery('');
+    setMemberQuery('');
+    setActiveSearch(null);
     setRecordDraft({
       title: record.title,
       course: record.course,
       deadline: record.deadline,
       description: record.description,
+      ownerId: record.ownerId,
+      memberIds: record.members.map((member) => member.id).filter((id) => id !== record.ownerId),
     });
     setError(null);
     setRecordEditor({ mode: 'edit', record });
@@ -506,8 +540,8 @@ export default function AdminConsole() {
           >
             Maintain Users
           </button>
-          <button className='btn primary' type='button' aria-pressed={panel === 'records'} onClick={openRecords}>
-            Maintain Records
+          <button className='btn primary' type='button' aria-pressed={panel === 'projects'} onClick={openRecords}>
+            Maintain Projects
           </button>
           <a className='btn' href='/api/auth/signout?return_to=%2Fadmin'>
             Logout
@@ -713,11 +747,11 @@ export default function AdminConsole() {
       </>
       ) : null}
 
-      {panel === 'records' ? (
-        <section className='admin-records' aria-label='Maintain Records'>
+      {panel === 'projects' ? (
+        <section className='admin-records' aria-label='Maintain Projects'>
           <div className='admin-toolbar admin-maintain-toolbar'>
             <button className='btn primary' type='button' onClick={openRecordCreate}>
-              New record
+              New project
             </button>
             <p className='subtext'>
               Projects are the records. Tasks created and milestones accomplished stay on each row.
@@ -732,6 +766,7 @@ export default function AdminConsole() {
                   <th>Course</th>
                   <th>Deadline</th>
                   <th>Owner</th>
+                  <th>Members</th>
                   <th>Tasks created</th>
                   <th>Milestones accomplished</th>
                   <th />
@@ -740,13 +775,13 @@ export default function AdminConsole() {
               <tbody>
                 {recordsLoading ? (
                   <tr>
-                    <td className='admin-empty' colSpan={7}>
+                    <td className='admin-empty' colSpan={8}>
                       Loading projects…
                     </td>
                   </tr>
                 ) : records.length === 0 ? (
                   <tr>
-                    <td className='admin-empty' colSpan={7}>
+                    <td className='admin-empty' colSpan={8}>
                       No projects yet.
                     </td>
                   </tr>
@@ -757,6 +792,10 @@ export default function AdminConsole() {
                       <td>{record.course || '—'}</td>
                       <td>{record.deadline || '—'}</td>
                       <td>{record.ownerEmail || '—'}</td>
+                      <td>
+                        {record.members.filter((member) => member.id !== record.ownerId).map((member) => member.name).join(', ') ||
+                          '—'}
+                      </td>
                       <td>{record.tasksCreated.toLocaleString()}</td>
                       <td>{record.milestonesCreated.toLocaleString()}</td>
                       <td className='admin-row-actions'>
@@ -884,7 +923,7 @@ export default function AdminConsole() {
       {recordEditor ? (
         <div className='admin-modal' role='presentation'>
           <form className='admin-dialog auth-form' onSubmit={submitRecord}>
-            <h2>{recordEditor.mode === 'create' ? 'New record' : 'Edit record'}</h2>
+            <h2>{recordEditor.mode === 'create' ? 'New project' : 'Edit project'}</h2>
             {recordEditor.mode === 'edit' ? (
               <p className='subtext'>
                 Tasks created ({recordEditor.record.tasksCreated.toLocaleString()}) and milestones
@@ -923,12 +962,165 @@ export default function AdminConsole() {
                 onChange={(event) => setRecordDraft({ ...recordDraft, description: event.target.value })}
               />
             </label>
+            <div className='admin-person-search'>
+              <label htmlFor='project-owner-search'>Owner</label>
+              {recordDraft.ownerId ? (
+                <span className='admin-person-chip'>
+                  {(overview?.accounts || []).find((account) => account.id === recordDraft.ownerId)?.name ||
+                    'Selected owner'}
+                  <button
+                    type='button'
+                    onClick={() => setRecordDraft({ ...recordDraft, ownerId: '' })}
+                    aria-label='Remove owner'
+                  >
+                    Remove
+                  </button>
+                </span>
+              ) : null}
+              <div className='admin-person-field'>
+                <input
+                  id='project-owner-search'
+                  type='search'
+                  role='combobox'
+                  aria-expanded={activeSearch === 'owner'}
+                  aria-controls='project-owner-results'
+                  value={ownerQuery}
+                  onChange={(event) => setOwnerQuery(event.target.value)}
+                  onFocus={() => setActiveSearch('owner')}
+                  onBlur={() => {
+                    window.setTimeout(() => {
+                      setActiveSearch((current) => (current === 'owner' ? null : current));
+                    }, 150);
+                  }}
+                  placeholder='Search for an owner'
+                  autoComplete='off'
+                />
+                {activeSearch === 'owner' ? (
+                  <ul id='project-owner-results' className='admin-person-results' role='listbox'>
+                    {(overview?.accounts || [])
+                      .filter((account) => !ownerQuery.trim() || accountMatches(account, ownerQuery))
+                      .slice(0, 8)
+                      .map((account) => (
+                        <li key={account.id}>
+                          <button
+                            type='button'
+                            role='option'
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => {
+                              setRecordDraft({
+                                ...recordDraft,
+                                ownerId: account.id,
+                                memberIds: recordDraft.memberIds.filter((id) => id !== account.id),
+                              });
+                              setOwnerQuery('');
+                              setActiveSearch(null);
+                            }}
+                          >
+                            {account.name}
+                            <span>{account.email}</span>
+                          </button>
+                        </li>
+                      ))}
+                    {(overview?.accounts || []).filter(
+                      (account) => !ownerQuery.trim() || accountMatches(account, ownerQuery),
+                    ).length === 0 ? (
+                      <li className='admin-person-empty'>No accounts match that search.</li>
+                    ) : null}
+                  </ul>
+                ) : null}
+              </div>
+            </div>
+            <div className='admin-person-search'>
+              <label htmlFor='project-member-search'>Other members</label>
+              {recordDraft.memberIds.length > 0 ? (
+                <div className='admin-person-chips'>
+                  {recordDraft.memberIds.map((id) => {
+                    const account = (overview?.accounts || []).find((entry) => entry.id === id);
+                    return (
+                      <span key={id} className='admin-person-chip'>
+                        {account?.name || id}
+                        <button
+                          type='button'
+                          onClick={() =>
+                            setRecordDraft({
+                              ...recordDraft,
+                              memberIds: recordDraft.memberIds.filter((memberId) => memberId !== id),
+                            })
+                          }
+                          aria-label={`Remove ${account?.name || 'member'}`}
+                        >
+                          Remove
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <div className='admin-person-field'>
+                <input
+                  id='project-member-search'
+                  type='search'
+                  role='combobox'
+                  aria-expanded={activeSearch === 'members'}
+                  aria-controls='project-member-results'
+                  value={memberQuery}
+                  onChange={(event) => setMemberQuery(event.target.value)}
+                  onFocus={() => setActiveSearch('members')}
+                  onBlur={() => {
+                    window.setTimeout(() => {
+                      setActiveSearch((current) => (current === 'members' ? null : current));
+                    }, 150);
+                  }}
+                  placeholder='Search and add people'
+                  autoComplete='off'
+                />
+                {activeSearch === 'members' ? (
+                  <ul id='project-member-results' className='admin-person-results' role='listbox'>
+                    {(overview?.accounts || [])
+                      .filter(
+                        (account) =>
+                          account.id !== recordDraft.ownerId &&
+                          !recordDraft.memberIds.includes(account.id) &&
+                          (!memberQuery.trim() || accountMatches(account, memberQuery)),
+                      )
+                      .slice(0, 8)
+                      .map((account) => (
+                        <li key={account.id}>
+                          <button
+                            type='button'
+                            role='option'
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => {
+                              setRecordDraft({
+                                ...recordDraft,
+                                memberIds: [...recordDraft.memberIds, account.id],
+                              });
+                              setMemberQuery('');
+                            }}
+                          >
+                            {account.name}
+                            <span>{account.email}</span>
+                          </button>
+                        </li>
+                      ))}
+                    {(overview?.accounts || []).filter(
+                      (account) =>
+                        account.id !== recordDraft.ownerId &&
+                        !recordDraft.memberIds.includes(account.id) &&
+                        (!memberQuery.trim() || accountMatches(account, memberQuery)),
+                    ).length === 0 ? (
+                      <li className='admin-person-empty'>No accounts match that search.</li>
+                    ) : null}
+                  </ul>
+                ) : null}
+              </div>
+            </div>
             <div className='admin-dialog-actions'>
               <button className='btn' type='button' onClick={() => setRecordEditor(null)} disabled={busy}>
                 Cancel
               </button>
               <button className='btn primary' type='submit' disabled={busy}>
-                {busy ? 'Saving…' : recordEditor.mode === 'create' ? 'Create record' : 'Save changes'}
+                {busy ? 'Saving…' : recordEditor.mode === 'create' ? 'Create project' : 'Save changes'}
               </button>
             </div>
           </form>
@@ -949,7 +1141,7 @@ export default function AdminConsole() {
                 Cancel
               </button>
               <button className='btn admin-delete' type='button' onClick={confirmRecordDelete} disabled={busy}>
-                {busy ? 'Deleting…' : 'Delete record'}
+                {busy ? 'Deleting…' : 'Delete project'}
               </button>
             </div>
           </div>

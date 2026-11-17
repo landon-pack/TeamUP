@@ -1,7 +1,7 @@
 /**
  * /api/admin/records
  *
- * Maintain Records for the projects table.
+ * Maintain Projects.
  * Creating a project adds one to the site and owner totals.
  * Editing a project does not change those totals or the task and milestone counts.
  */
@@ -29,8 +29,13 @@ export async function POST(req: Request) {
       course?: string;
       deadline?: string;
       description?: string;
+      ownerId?: string;
+      memberIds?: string[];
     };
-    const created = await createAdminRecord(access.db, access.adminId, body);
+    const created = await createAdminRecord(access.db, {
+      ...body,
+      ownerId: body.ownerId || access.adminId,
+    });
     if (!created.ok) return Response.json({ error: created.error }, { status: 400 });
     return Response.json({ ok: true, id: created.id }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
