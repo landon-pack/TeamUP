@@ -295,15 +295,18 @@ export default function AdminConsole() {
     }
   }
 
-  async function confirmDelete() {
+  async function confirmDelete(force = false) {
     if (!pendingDelete) return;
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/accounts/${encodeURIComponent(pendingDelete.id)}`, {
-        method: 'DELETE',
-        credentials: 'same-origin',
-      });
+      const response = await fetch(
+        `/api/admin/accounts/${encodeURIComponent(pendingDelete.id)}${force ? '?force=1' : ''}`,
+        {
+          method: 'DELETE',
+          credentials: 'same-origin',
+        },
+      );
       const data = await readError(response);
       if (!response.ok) throw new Error(data.error || 'Unable to delete that account.');
       if (selectedId === pendingDelete.id) setSelectedId(null);
@@ -858,16 +861,20 @@ export default function AdminConsole() {
           <div className='admin-dialog' role='dialog' aria-modal='true' aria-labelledby='admin-delete-title'>
             <h2 id='admin-delete-title'>Delete {pendingDelete.name}?</h2>
             <p className='subtext'>
-              They lose access to TeamUP. Projects they own have to be deleted first. Projects they only
-              belong to stay, without them on the team.
+              They lose access to TeamUP. Projects they only belong to stay, without them on the team.
+              If they own a project, force delete removes that project and kicks the other members off it.
+              Their accounts stay, and the usage totals stay.
             </p>
             {error ? <p className='auth-error'>{error}</p> : null}
             <div className='admin-dialog-actions'>
               <button className='btn' type='button' onClick={() => setPendingDelete(null)} disabled={busy}>
                 Cancel
               </button>
-              <button className='btn admin-delete' type='button' onClick={confirmDelete} disabled={busy}>
+              <button className='btn admin-delete' type='button' onClick={() => confirmDelete(false)} disabled={busy}>
                 {busy ? 'Deleting…' : 'Delete account'}
+              </button>
+              <button className='btn admin-delete' type='button' onClick={() => confirmDelete(true)} disabled={busy}>
+                {busy ? 'Deleting…' : 'Force delete and kick project'}
               </button>
             </div>
           </div>

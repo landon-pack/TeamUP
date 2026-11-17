@@ -53,12 +53,13 @@ export async function PATCH(req: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_req: Request, context: RouteContext) {
+export async function DELETE(req: Request, context: RouteContext) {
   const access = await requireAdmin();
   if (!access.ok) return access.response;
   const { id } = await context.params;
+  const force = new URL(req.url).searchParams.get('force') === '1';
   try {
-    const result = await deleteAdminAccount(access.db, access.adminId, accountId(id));
+    const result = await deleteAdminAccount(access.db, access.adminId, accountId(id), force);
     if (!result.ok) return Response.json({ error: result.error }, { status: result.status });
     return Response.json({ ok: true }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {

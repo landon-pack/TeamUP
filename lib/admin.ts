@@ -368,7 +368,12 @@ export async function updateAdminAccount(
   return { ok: true as const };
 }
 
-export async function deleteAdminAccount(db: D1Database, actorId: string, userId: string) {
+export async function deleteAdminAccount(
+  db: D1Database,
+  actorId: string,
+  userId: string,
+  force = false,
+) {
   if (actorId === userId) {
     return { ok: false as const, status: 400, error: 'You can’t delete the account you’re signed in with.' };
   }
@@ -382,17 +387,25 @@ export async function deleteAdminAccount(db: D1Database, actorId: string, userId
     return { ok: false as const, status: 400, error: 'The site owner account can’t be deleted.' };
   }
 
-  const owned = await db
-    .prepare('SELECT count(*) AS n FROM projects WHERE owner=? OR owner=?')
+  const ownedRows = await db
+    .prepare('SELECT id FROM projects WHERE owner=? OR owner=?')
     .bind(user.id, user.auth_id || '')
-    .first<{ n: number }>();
-  if ((owned?.n || 0) > 0) {
-    const count = owned?.n || 0;
+    .all<{ id: string }>();
+  const ownedIds = (ownedRows.results || []).map((row) => row.id);
+  if (ownedIds.length > 0 && !force) {
+    const count = ownedIds.length;
     return {
       ok: false as const,
       status: 400,
-      error: `This account still owns ${count} project${count === 1 ? '' : 's'}. Delete those projects before deleting the account.`,
+      error: `This account still owns ${count} project${count === 1 ? '' : 's'}. Delete those projects first, or force delete to remove the projects and kick off the other members.`,
     };
+  }
+  // Force delete removes each owned project. Other accounts stay, but they lose access. Totals are not reduced.
+  if (force) {
+    for (const projectId of ownedIds) {
+      const removed = await deleteAdminRecord(db, projectId, actorId);
+      if (!removed.ok) return { ok: false as const, status: 400, error: removed.error };
+    }
   }
 
   const id = user.id;
