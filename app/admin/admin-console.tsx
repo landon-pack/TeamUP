@@ -1,5 +1,15 @@
 'use client';
 
+/**
+ * Admin page.
+ *
+ * The login form is visible until an admin session cookie exists.
+ * Maintain Users, Maintain Records, and Logout stay hidden until that login succeeds.
+ * Logout calls /api/auth/signout, which clears the session cookie and returns here.
+ * The totals above the tables (projects, accounts, active today, tasks, milestones)
+ * stay on screen after login. Deleting a user or project does not reduce those totals.
+ */
+
 import { FormEvent, Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import AuthPasswordField from '../auth-password-field';
 
@@ -45,6 +55,24 @@ type Draft = {
   admin: boolean;
 };
 
+type ProjectRecord = {
+  id: string;
+  title: string;
+  course: string;
+  deadline: string;
+  description: string;
+  tasksCreated: number;
+  milestonesCreated: number;
+  ownerEmail: string;
+};
+
+type RecordDraft = {
+  title: string;
+  course: string;
+  deadline: string;
+  description: string;
+};
+
 const emptyDraft = (): Draft => ({
   firstName: '',
   lastName: '',
@@ -52,6 +80,13 @@ const emptyDraft = (): Draft => ({
   email: '',
   password: '',
   admin: false,
+});
+
+const emptyRecordDraft = (): RecordDraft => ({
+  title: '',
+  course: '',
+  deadline: '',
+  description: '',
 });
 
 function formatWhen(value: string | null) {
@@ -102,6 +137,14 @@ export default function AdminConsole() {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [detailVersion, setDetailVersion] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Account | null>(null);
+  const [panel, setPanel] = useState<'users' | 'records' | null>(null);
+  const [records, setRecords] = useState<ProjectRecord[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [recordEditor, setRecordEditor] = useState<
+    null | { mode: 'create' } | { mode: 'edit'; record: ProjectRecord }
+  >(null);
+  const [recordDraft, setRecordDraft] = useState<RecordDraft>(emptyRecordDraft);
+  const [pendingRecordDelete, setPendingRecordDelete] = useState<ProjectRecord | null>(null);
   const detailRowRef = useRef<HTMLTableRowElement | null>(null);
 
   async function loadOverview() {
@@ -185,7 +228,7 @@ export default function AdminConsole() {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login, password, remember: false }),
+        body: JSON.stringify({ user_email: login, user_password: password, remember: false }),
       });
       const data = await readError(response);
       if (!response.ok) throw new Error(data.error || 'Unable to sign in.');
@@ -273,6 +316,100 @@ export default function AdminConsole() {
     }
   }
 
+  async function loadRecords() {
+    setRecordsLoading(true);
+    try {
+      const response = await fetch('/api/admin/records', { cache: 'no-store', credentials: 'same-origin' });
+      const data = (await response.json().catch(() => ({}))) as { error?: string; records?: ProjectRecord[] };
+      if (!response.ok) throw new Error(data.error || 'Unable to load projects.');
+      setRecords(Array.isArray(data.records) ? data.records : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load projects.');
+    } finally {
+      setRecordsLoading(false);
+    }
+  }
+
+  function openUsers() {
+    setPanel((current) => (current === 'users' ? null : 'users'));
+    setRecordEditor(null);
+    setPendingRecordDelete(null);
+  }
+
+  function openRecords() {
+    setEditor(null);
+    setPendingDelete(null);
+    setPanel((current) => (current === 'records' ? null : 'records'));
+  }
+
+  useEffect(() => {
+    if (panel === 'records') void loadRecords();
+  }, [panel]);
+
+  function openRecordCreate() {
+    setRecordDraft(emptyRecordDraft());
+    setError(null);
+    setRecordEditor({ mode: 'create' });
+  }
+
+  function openRecordEdit(record: ProjectRecord) {
+    setRecordDraft({
+      title: record.title,
+      course: record.course,
+      deadline: record.deadline,
+      description: record.description,
+    });
+    setError(null);
+    setRecordEditor({ mode: 'edit', record });
+  }
+
+  async function submitRecord(event: FormEvent) {
+    event.preventDefault();
+    if (!recordEditor) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const creating = recordEditor.mode === 'create';
+      const response = await fetch(
+        creating ? '/api/admin/records' : `/api/admin/records/${encodeURIComponent(recordEditor.record.id)}`,
+        {
+          method: creating ? 'POST' : 'PATCH',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(recordDraft),
+        },
+      );
+      const data = await readError(response);
+      if (!response.ok) throw new Error(data.error || 'Unable to save that project.');
+      setRecordEditor(null);
+      await Promise.all([loadRecords(), loadOverview()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save that project.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmRecordDelete() {
+    if (!pendingRecordDelete) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/admin/records/${encodeURIComponent(pendingRecordDelete.id)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      const data = await readError(response);
+      if (!response.ok) throw new Error(data.error || 'Unable to delete that project.');
+      setPendingRecordDelete(null);
+      await Promise.all([loadRecords(), loadOverview()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete that project.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function toggleDetail(id: string) {
     setSelectedId((current) => (current === id ? null : id));
   }
@@ -306,10 +443,12 @@ export default function AdminConsole() {
           ) : null}
           {error ? <p className='auth-error'>{error}</p> : null}
           <form className='auth-form' method='post' action='/admin' onSubmit={submitLogin}>
-            <label>
-              Email or username
+            <label htmlFor='user_email'>
+              Email
               <input
-                name='login'
+                id='user_email'
+                name='user_email'
+                type='text'
                 value={login}
                 onChange={(event) => setLogin(event.target.value)}
                 autoComplete='username'
@@ -317,8 +456,9 @@ export default function AdminConsole() {
               />
             </label>
             <AuthPasswordField
+              id='user_password'
               label='Password'
-              name='password'
+              name='user_password'
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete='current-password'
@@ -354,11 +494,20 @@ export default function AdminConsole() {
           </p>
         </div>
         <div className='admin-top-actions'>
-          <button className='btn primary' type='button' onClick={openCreate}>
-            New account
+          {/* Hidden until this signed-in view renders. Logout clears the session cookie. */}
+          <button
+            className='btn primary'
+            type='button'
+            aria-pressed={panel === 'users'}
+            onClick={openUsers}
+          >
+            Maintain Users
+          </button>
+          <button className='btn primary' type='button' aria-pressed={panel === 'records'} onClick={openRecords}>
+            Maintain Records
           </button>
           <a className='btn' href='/api/auth/signout?return_to=%2Fadmin'>
-            Sign out
+            Logout
           </a>
         </div>
       </header>
@@ -372,8 +521,17 @@ export default function AdminConsole() {
         ))}
       </section>
 
-      {error && !editor && !pendingDelete ? <p className='auth-error'>{error}</p> : null}
+      {error && !editor && !pendingDelete && !recordEditor && !pendingRecordDelete ? (
+        <p className='auth-error'>{error}</p>
+      ) : null}
 
+      {panel === 'users' ? (
+      <>
+      <div className='admin-toolbar admin-maintain-toolbar'>
+        <button className='btn primary' type='button' onClick={openCreate}>
+          New account
+        </button>
+      </div>
       <div className='admin-toolbar'>
         <label>
           Find an account
@@ -549,6 +707,78 @@ export default function AdminConsole() {
           </tbody>
         </table>
       </div>
+      </>
+      ) : null}
+
+      {panel === 'records' ? (
+        <section className='admin-records' aria-label='Maintain Records'>
+          <div className='admin-toolbar admin-maintain-toolbar'>
+            <button className='btn primary' type='button' onClick={openRecordCreate}>
+              New record
+            </button>
+            <p className='subtext'>
+              Projects are the records. Tasks created and milestones accomplished stay on each row.
+              Deleting a project does not lower the totals above.
+            </p>
+          </div>
+          <div className='admin-table-wrap'>
+            <table className='admin-table'>
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th>Course</th>
+                  <th>Deadline</th>
+                  <th>Owner</th>
+                  <th>Tasks created</th>
+                  <th>Milestones accomplished</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {recordsLoading ? (
+                  <tr>
+                    <td className='admin-empty' colSpan={7}>
+                      Loading projects…
+                    </td>
+                  </tr>
+                ) : records.length === 0 ? (
+                  <tr>
+                    <td className='admin-empty' colSpan={7}>
+                      No projects yet.
+                    </td>
+                  </tr>
+                ) : (
+                  records.map((record) => (
+                    <tr key={record.id}>
+                      <td>{record.title}</td>
+                      <td>{record.course || '—'}</td>
+                      <td>{record.deadline || '—'}</td>
+                      <td>{record.ownerEmail || '—'}</td>
+                      <td>{record.tasksCreated.toLocaleString()}</td>
+                      <td>{record.milestonesCreated.toLocaleString()}</td>
+                      <td className='admin-row-actions'>
+                        <button type='button' className='btn' onClick={() => openRecordEdit(record)}>
+                          Edit
+                        </button>
+                        <button
+                          type='button'
+                          className='btn admin-delete'
+                          onClick={() => {
+                            setError(null);
+                            setPendingRecordDelete(record);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       {editor ? (
         <div className='admin-modal' role='presentation'>
@@ -638,6 +868,81 @@ export default function AdminConsole() {
               </button>
               <button className='btn admin-delete' type='button' onClick={confirmDelete} disabled={busy}>
                 {busy ? 'Deleting…' : 'Delete account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {recordEditor ? (
+        <div className='admin-modal' role='presentation'>
+          <form className='admin-dialog auth-form' onSubmit={submitRecord}>
+            <h2>{recordEditor.mode === 'create' ? 'New record' : 'Edit record'}</h2>
+            {recordEditor.mode === 'edit' ? (
+              <p className='subtext'>
+                Tasks created ({recordEditor.record.tasksCreated.toLocaleString()}) and milestones
+                accomplished ({recordEditor.record.milestonesCreated.toLocaleString()}) stay the same.
+              </p>
+            ) : null}
+            {error ? <p className='auth-error'>{error}</p> : null}
+            <label>
+              Project name
+              <input
+                value={recordDraft.title}
+                onChange={(event) => setRecordDraft({ ...recordDraft, title: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              Course
+              <input
+                value={recordDraft.course}
+                onChange={(event) => setRecordDraft({ ...recordDraft, course: event.target.value })}
+              />
+            </label>
+            <label>
+              Deadline
+              <input
+                type='date'
+                value={recordDraft.deadline}
+                onChange={(event) => setRecordDraft({ ...recordDraft, deadline: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              Description
+              <input
+                value={recordDraft.description}
+                onChange={(event) => setRecordDraft({ ...recordDraft, description: event.target.value })}
+              />
+            </label>
+            <div className='admin-dialog-actions'>
+              <button className='btn' type='button' onClick={() => setRecordEditor(null)} disabled={busy}>
+                Cancel
+              </button>
+              <button className='btn primary' type='submit' disabled={busy}>
+                {busy ? 'Saving…' : recordEditor.mode === 'create' ? 'Create record' : 'Save changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {pendingRecordDelete ? (
+        <div className='admin-modal' role='presentation'>
+          <div className='admin-dialog' role='dialog' aria-modal='true' aria-labelledby='admin-record-delete-title'>
+            <h2 id='admin-record-delete-title'>Delete {pendingRecordDelete.title}?</h2>
+            <p className='subtext'>
+              The project is removed. The lifetime totals for projects, tasks, and milestones stay
+              where they are.
+            </p>
+            {error ? <p className='auth-error'>{error}</p> : null}
+            <div className='admin-dialog-actions'>
+              <button className='btn' type='button' onClick={() => setPendingRecordDelete(null)} disabled={busy}>
+                Cancel
+              </button>
+              <button className='btn admin-delete' type='button' onClick={confirmRecordDelete} disabled={busy}>
+                {busy ? 'Deleting…' : 'Delete record'}
               </button>
             </div>
           </div>

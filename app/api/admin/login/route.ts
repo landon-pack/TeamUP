@@ -27,9 +27,17 @@ const DENIED = 'This account can’t open the admin page.';
 export async function POST(req: Request) {
   try {
     sameOrigin(req);
-    const body = (await req.json()) as { login?: string; password?: string; remember?: boolean };
-    const rawLogin = typeof body.login === 'string' ? body.login : '';
-    const rawPassword = typeof body.password === 'string' ? body.password : '';
+    // user_email / user_password are the field names on the admin form. login / password still work.
+    const body = (await req.json()) as {
+      user_email?: string;
+      user_password?: string;
+      login?: string;
+      password?: string;
+      remember?: boolean;
+    };
+    const rawLogin = typeof body.user_email === 'string' ? body.user_email : typeof body.login === 'string' ? body.login : '';
+    const rawPassword =
+      typeof body.user_password === 'string' ? body.user_password : typeof body.password === 'string' ? body.password : '';
     const remember = body.remember === true;
     const secure = requestIsSecure(req);
     const db = runtime().DB;

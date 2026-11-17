@@ -16,6 +16,7 @@ import { LOCAL_DEV_ACCOUNT } from './local-dev-account';
 import { hashPassword } from './password';
 import { noteDailyActivity, runtime } from './server';
 import { createPasswordUser, userKey } from './store';
+import { projectCreatedStatements } from './usage';
 
 export type AdminAccount = {
   id: string;
@@ -429,5 +430,187 @@ export async function deleteAdminAccount(db: D1Database, actorId: string, userId
   );
   await db.batch(statements);
 
+  return { ok: true as const };
+}
+
+/** A project row the admin can maintain. Creation totals stay on the project and are not edited here. */
+export type AdminRecord = {
+  id: string;
+  title: string;
+  course: string;
+  deadline: string;
+  description: string;
+  tasksCreated: number;
+  milestonesCreated: number;
+  ownerEmail: string;
+  version: number;
+};
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function cleanRecordText(raw: unknown, max: number) {
+  return typeof raw === 'string' ? raw.trim().replace(/\s+/g, ' ').slice(0, max) : '';
+}
+
+function recordInput(input: { title?: unknown; course?: unknown; deadline?: unknown; description?: unknown }) {
+  const title = cleanRecordText(input.title, 200);
+  const course = cleanRecordText(input.course, 200);
+  const description = typeof input.description === 'string' ? input.description.trim().slice(0, 5000) : '';
+  const deadline = typeof input.deadline === 'string' ? input.deadline.trim() : '';
+  if (!title) return { ok: false as const, error: 'Enter a project name.' };
+  if (!DATE_RE.test(deadline)) return { ok: false as const, error: 'Enter a deadline as YYYY-MM-DD.' };
+  return { ok: true as const, title, course, description, deadline };
+}
+
+/** Read every project, including the lifetime task and milestone counts. */
+export async function listAdminRecords(db: D1Database) {
+  const rows = await db
+    .prepare(
+      `SELECT p.id, p.title, p.course, p.deadline, p.description, p.version,
+              p.tasks_created, p.milestones_created, coalesce(u.email, '') AS owner_email
+       FROM projects p
+       LEFT JOIN users u ON u.id = p.owner
+       ORDER BY p.deadline, p.title COLLATE NOCASE`,
+    )
+    .all<{
+      id: string;
+      title: string;
+      course: string;
+      deadline: string;
+      description: string;
+      version: number;
+      tasks_created: number;
+      milestones_created: number;
+      owner_email: string;
+    }>();
+  return (rows.results || []).map(
+    (row): AdminRecord => ({
+      id: row.id,
+      title: row.title,
+      course: row.course,
+      deadline: row.deadline,
+      description: row.description,
+      tasksCreated: row.tasks_created,
+      milestonesCreated: row.milestones_created,
+      ownerEmail: row.owner_email,
+      version: row.version,
+    }),
+  );
+}
+
+/**
+ * Create one project for the signed-in admin.
+ * Site and owner project totals go up by one. Task and milestone totals start at zero.
+ */
+export async function createAdminRecord(
+  db: D1Database,
+  ownerId: string,
+  input: { title?: unknown; course?: unknown; deadline?: unknown; description?: unknown },
+) {
+  const fields = recordInput(input);
+  if (!fields.ok) return fields;
+  const id = crypto.randomUUID();
+  const groupId = 'group:' + id;
+  const token = crypto.randomUUID();
+  await db.batch([
+    db.prepare('INSERT INTO groups(id, name) VALUES(?, ?)').bind(groupId, fields.title),
+    db
+      .prepare(
+        `INSERT INTO projects(
+           id, owner, data, version, group_id, title, description, course, deadline,
+           reminder_hours, normalized, write_token, tasks_created, milestones_created
+         ) VALUES(?, ?, '{}', 1, ?, ?, ?, ?, ?, 24, 1, ?, 0, 0)`,
+      )
+      .bind(id, ownerId, groupId, fields.title, fields.description, fields.course, fields.deadline, token),
+    db
+      .prepare('INSERT INTO group_members(group_id, user_id, role, color) VALUES(?, ?, ?, ?)')
+      .bind(groupId, ownerId, 'owner', '#5b54d9'),
+    ...projectCreatedStatements(db, ownerId, id, token),
+  ]);
+  return { ok: true as const, id };
+}
+
+/** Change the project text only. Lifetime task, milestone, and project counts stay as they are. */
+export async function updateAdminRecord(
+  db: D1Database,
+  id: string,
+  input: { title?: unknown; course?: unknown; deadline?: unknown; description?: unknown },
+) {
+  const fields = recordInput(input);
+  if (!fields.ok) return fields;
+  const current = await db
+    .prepare('SELECT group_id FROM projects WHERE id=?')
+    .bind(id)
+    .first<{ group_id: string | null }>();
+  if (!current) return { ok: false as const, error: 'That project was not found.' };
+  const statements = [
+    db
+      .prepare(
+        'UPDATE projects SET title=?, description=?, course=?, deadline=?, version=version+1 WHERE id=?',
+      )
+      .bind(fields.title, fields.description, fields.course, fields.deadline, id),
+  ];
+  if (current.group_id) {
+    statements.push(db.prepare('UPDATE groups SET name=? WHERE id=?').bind(fields.title, current.group_id));
+  }
+  await db.batch(statements);
+  return { ok: true as const };
+}
+
+/**
+ * Remove a project and its team rows.
+ * Does not lower site_stats.projects_created, users.projects_created, tasks_created, or milestones_created.
+ */
+export async function deleteAdminRecord(db: D1Database, id: string, actorId: string) {
+  const row = await db
+    .prepare('SELECT id, group_id FROM projects WHERE id=?')
+    .bind(id)
+    .first<{ id: string; group_id: string | null }>();
+  if (!row) return { ok: false as const, error: 'That project was not found.' };
+  const token = crypto.randomUUID();
+  const guard = 'EXISTS(SELECT 1 FROM projects WHERE id=? AND write_token=?)';
+  const q = (sql: string, args: unknown[] = []) => db.prepare(sql).bind(...args, id, token);
+  const statements = [
+    db.prepare('UPDATE projects SET write_token=? WHERE id=?').bind(token, id),
+    q(
+      `INSERT OR IGNORE INTO file_cleanup(storage_key, user_id)
+       SELECT COALESCE(storage_key, id), ? FROM files WHERE project_id=? AND ${guard}`,
+      [actorId, id],
+    ),
+    q(
+      `DELETE FROM ai_messaging WHERE conversation_id IN (SELECT id FROM conversations WHERE project_id=?) AND ${guard}`,
+      [id],
+    ),
+  ];
+  for (const table of [
+    'project_member_invites',
+    'project_invites',
+    'notifications',
+    'conversations',
+    'chats',
+    'availability',
+    'tasks',
+    'milestones',
+    'files',
+    'memberships',
+  ]) {
+    statements.push(q(`DELETE FROM ${table} WHERE project_id=? AND ${guard}`, [id]));
+  }
+  statements.push(q(`DELETE FROM projects WHERE id=? AND ${guard}`, [id]));
+  if (row.group_id) {
+    statements.push(
+      db
+        .prepare(
+          'DELETE FROM group_members WHERE group_id=? AND NOT EXISTS(SELECT 1 FROM projects WHERE group_id=?)',
+        )
+        .bind(row.group_id, row.group_id),
+    );
+    statements.push(
+      db
+        .prepare('DELETE FROM groups WHERE id=? AND NOT EXISTS(SELECT 1 FROM projects WHERE group_id=?)')
+        .bind(row.group_id, row.group_id),
+    );
+  }
+  await db.batch(statements);
   return { ok: true as const };
 }

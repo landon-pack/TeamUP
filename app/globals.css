@@ -3680,6 +3680,19 @@ body.tutorial-running .app-main {
 .admin-toolbar {
   margin: 0 0 12px;
 }
+.admin-maintain-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+.admin-maintain-toolbar .subtext {
+  margin: 0;
+}
+.admin-records .admin-table tbody tr {
+  cursor: default;
+}
 .admin-toolbar label {
   display: flex;
   flex-direction: column;
